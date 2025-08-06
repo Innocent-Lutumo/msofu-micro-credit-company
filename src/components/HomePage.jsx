@@ -23,6 +23,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  TablePagination, // New import
 } from "@mui/material";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -78,35 +79,16 @@ const darkTheme = createTheme({
   },
 });
 
-const initialApplicants = [
-  {
-    id: 1,
-    name: "John Doe",
-    passportImage: "https://via.placeholder.com/150",
-    nationalIdImage: "https://via.placeholder.com/300x150",
-    nationalId: "1234567890",
-    phoneNumber: "+1234567890",
-    status: "waiting for confirmation",
-  },
-  {
-    id: 2,
-    name: "Jane Smith",
-    passportImage: "https://via.placeholder.com/150",
-    nationalIdImage: "https://via.placeholder.com/300x150",
-    nationalId: "0987654321",
-    phoneNumber: "+1987654321",
-    status: "waiting for confirmation",
-  },
-  {
-    id: 3,
-    name: "Peter Jones",
-    passportImage: "https://via.placeholder.com/150",
-    nationalIdImage: "https://via.placeholder.com/300x150",
-    nationalId: "1122334455",
-    phoneNumber: "+1112233445",
-    status: "waiting for confirmation",
-  },
-];
+// A larger dummy dataset for demonstration
+const initialApplicants = Array.from({ length: 25 }, (_, i) => ({
+  id: i + 1,
+  name: `Applicant ${i + 1}`,
+  passportImage: `https://images.unsplash.com/photo-15${5000 + i}`,
+  nationalIdImage: `https://images.unsplash.com/photo-15${6000 + i}`,
+  nationalId: `ID${i + 1}`,
+  phoneNumber: `+12345678${(i + 1).toString().padStart(2, "0")}`,
+  status: "waiting for confirmation",
+}));
 
 const drawerWidthLeft = 200;
 const drawerWidthRight = 300;
@@ -119,6 +101,8 @@ const DashboardPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const handleStatusUpdate = (id, newStatus) => {
     setApplicants((prevApplicants) =>
@@ -154,6 +138,7 @@ const DashboardPage = () => {
 
   const handleSearch = (event) => {
     setSearchTerm(event.target.value);
+    setPage(0); // Reset page to 0 when search term changes
   };
 
   const handleAboutOpen = () => {
@@ -162,6 +147,16 @@ const DashboardPage = () => {
 
   const handleAboutClose = () => {
     setAboutDialogOpen(false);
+  };
+
+  // Pagination handler functions
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0); // Reset page to 0 when rows per page changes
   };
 
   const currentTheme = mode === "dark" ? darkTheme : lightTheme;
@@ -206,7 +201,7 @@ const DashboardPage = () => {
               component="div"
               sx={{ flexGrow: 1 }}
             >
-              Dashboard
+              Credit Officer Dashboard
             </Typography>
 
             {/* Search Input */}
@@ -398,96 +393,108 @@ const DashboardPage = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredApplicants.map((applicant) => (
-                    <TableRow key={applicant.id}>
-                      <TableCell component="th" scope="row">
-                        {applicant.name}
-                      </TableCell>
-                      <TableCell align="right">
-                        {applicant.phoneNumber}
-                      </TableCell>
-                      <TableCell align="right">
-                        {applicant.nationalId}
-                      </TableCell>
-                      <TableCell align="center">
-                        <CardMedia
-                          component="img"
-                          sx={{
-                            width: 50,
-                            height: 50,
-                            borderRadius: "50%",
-                            mx: "auto",
-                          }}
-                          image={applicant.passportImage}
-                          alt={`${applicant.name} Passport`}
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        <CardMedia
-                          component="img"
-                          sx={{
-                            width: 100,
-                            height: 50,
-                            objectFit: "contain",
-                            mx: "auto",
-                          }}
-                          image={applicant.nationalIdImage}
-                          alt={`${applicant.name} National ID`}
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color:
-                              applicant.status === "accepted"
-                                ? "green"
-                                : applicant.status === "rejected"
-                                ? "red"
-                                : "gray",
-                            fontWeight: "bold",
-                          }}
-                        >
-                          {applicant.status}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: "center",
-                            gap: 1,
-                          }}
-                        >
-                          <Tooltip title="Accept">
-                            <IconButton
-                              color="success"
-                              onClick={() =>
-                                handleStatusUpdate(applicant.id, "accepted")
-                              }
-                              disabled={applicant.status === "accepted"}
-                            >
-                              <CheckCircleOutlineIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Reject">
-                            <IconButton
-                              color="error"
-                              onClick={() =>
-                                handleStatusUpdate(applicant.id, "rejected")
-                              }
-                              disabled={applicant.status === "rejected"}
-                            >
-                              <CancelOutlinedIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredApplicants
+                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                    .map((applicant) => (
+                      <TableRow key={applicant.id}>
+                        <TableCell component="th" scope="row">
+                          {applicant.name}
+                        </TableCell>
+                        <TableCell align="right">
+                          {applicant.phoneNumber}
+                        </TableCell>
+                        <TableCell align="right">
+                          {applicant.nationalId}
+                        </TableCell>
+                        <TableCell align="center">
+                          <CardMedia
+                            component="img"
+                            sx={{
+                              width: 50,
+                              height: 50,
+                              borderRadius: "50%",
+                              mx: "auto",
+                            }}
+                            image={applicant.passportImage}
+                            alt={`${applicant.name} Passport`}
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          <CardMedia
+                            component="img"
+                            sx={{
+                              width: 100,
+                              height: 50,
+                              objectFit: "contain",
+                              mx: "auto",
+                            }}
+                            image={applicant.nationalIdImage}
+                            alt={`${applicant.name} National ID`}
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color:
+                                applicant.status === "accepted"
+                                  ? "green"
+                                  : applicant.status === "rejected"
+                                  ? "red"
+                                  : "gray",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            {applicant.status}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "center",
+                              gap: 1,
+                            }}
+                          >
+                            <Tooltip title="Accept">
+                              <IconButton
+                                color="success"
+                                onClick={() =>
+                                  handleStatusUpdate(applicant.id, "accepted")
+                                }
+                                disabled={applicant.status === "accepted"}
+                              >
+                                <CheckCircleOutlineIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Reject">
+                              <IconButton
+                                color="error"
+                                onClick={() =>
+                                  handleStatusUpdate(applicant.id, "rejected")
+                                }
+                                disabled={applicant.status === "rejected"}
+                              >
+                                <CancelOutlinedIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                 </TableBody>
               </Table>
             </TableContainer>
+            {/* Pagination Component */}
+            <TablePagination
+              rowsPerPageOptions={[5, 10, 25]} // You can customize these options
+              component="div"
+              count={filteredApplicants.length}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+            />
           </Paper>
         </Box>
 
