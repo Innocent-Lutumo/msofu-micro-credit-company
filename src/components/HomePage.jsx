@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -23,7 +23,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  TablePagination, // New import
+  TablePagination,
 } from "@mui/material";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -79,7 +79,6 @@ const darkTheme = createTheme({
   },
 });
 
-// A larger dummy dataset for demonstration
 const initialApplicants = Array.from({ length: 25 }, (_, i) => ({
   id: i + 1,
   name: `Applicant ${i + 1}`,
@@ -93,6 +92,17 @@ const initialApplicants = Array.from({ length: 25 }, (_, i) => ({
 const drawerWidthLeft = 200;
 const drawerWidthRight = 300;
 
+// Helper function to get value from localStorage or return a default
+const getStoredValue = (key, defaultValue) => {
+  try {
+    const storedValue = localStorage.getItem(key);
+    return storedValue ? JSON.parse(storedValue) : defaultValue;
+  } catch (error) {
+    console.error("Error parsing localStorage value:", error);
+    return defaultValue;
+  }
+};
+
 const DashboardPage = () => {
   const [applicants, setApplicants] = useState(initialApplicants);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
@@ -101,8 +111,21 @@ const DashboardPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  // Initialize state from localStorage or use default values
+  const [page, setPage] = useState(() => getStoredValue("tablePage", 0));
+  const [rowsPerPage, setRowsPerPage] = useState(() =>
+    getStoredValue("tableRowsPerPage", 10)
+  );
+
+  // Use useEffect to save state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("tablePage", JSON.stringify(page));
+  }, [page]);
+
+  useEffect(() => {
+    localStorage.setItem("tableRowsPerPage", JSON.stringify(rowsPerPage));
+  }, [rowsPerPage]);
 
   const handleStatusUpdate = (id, newStatus) => {
     setApplicants((prevApplicants) =>
@@ -138,7 +161,7 @@ const DashboardPage = () => {
 
   const handleSearch = (event) => {
     setSearchTerm(event.target.value);
-    setPage(0); // Reset page to 0 when search term changes
+    setPage(0);
   };
 
   const handleAboutOpen = () => {
@@ -149,14 +172,13 @@ const DashboardPage = () => {
     setAboutDialogOpen(false);
   };
 
-  // Pagination handler functions
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
   };
 
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0); // Reset page to 0 when rows per page changes
+    setPage(0);
   };
 
   const currentTheme = mode === "dark" ? darkTheme : lightTheme;
@@ -175,8 +197,6 @@ const DashboardPage = () => {
         }}
       >
         <CssBaseline />
-
-        {/* App Bar (Header) fixed to the top and full width */}
         <AppBar
           position="fixed"
           sx={{
@@ -204,7 +224,6 @@ const DashboardPage = () => {
               Credit Officer Dashboard
             </Typography>
 
-            {/* Search Input */}
             <Box
               sx={{
                 position: "relative",
@@ -285,7 +304,6 @@ const DashboardPage = () => {
           </Toolbar>
         </AppBar>
 
-        {/* Left Sidebar */}
         <Box
           sx={{
             width: leftDrawerOpen ? drawerWidthLeft : 0,
@@ -351,7 +369,6 @@ const DashboardPage = () => {
           )}
         </Box>
 
-        {/* Main Content Area */}
         <Box
           component="main"
           sx={{
@@ -364,7 +381,6 @@ const DashboardPage = () => {
           }}
         >
           <Paper elevation={3} sx={{ padding: 4, borderRadius: 2 }}>
-            {/* Welcome Section */}
             <Box sx={{ mb: 4 }}>
               <Typography variant="h5" gutterBottom>
                 Welcome!
@@ -375,7 +391,6 @@ const DashboardPage = () => {
               </Typography>
             </Box>
 
-            {/* Loan Applicant Table */}
             <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
               Loan Applicants
             </Typography>
@@ -485,9 +500,8 @@ const DashboardPage = () => {
                 </TableBody>
               </Table>
             </TableContainer>
-            {/* Pagination Component */}
             <TablePagination
-              rowsPerPageOptions={[5, 10, 25]} // You can customize these options
+              rowsPerPageOptions={[5, 10, 25]}
               component="div"
               count={filteredApplicants.length}
               rowsPerPage={rowsPerPage}
@@ -498,7 +512,6 @@ const DashboardPage = () => {
           </Paper>
         </Box>
 
-        {/* Right Sidebar */}
         <Box
           sx={{
             width: rightDrawerOpen ? drawerWidthRight : 0,
@@ -546,7 +559,6 @@ const DashboardPage = () => {
           )}
         </Box>
 
-        {/* About Dialog */}
         <Dialog open={aboutDialogOpen} onClose={handleAboutClose}>
           <DialogTitle>About This Dashboard</DialogTitle>
           <DialogContent>
