@@ -11,12 +11,33 @@ import {
   Paper,
   CssBaseline,
   InputAdornment,
-  Fade,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from "@mui/material";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import PhoneIphoneIcon from "@mui/icons-material/PhoneIphone";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline"; // Import the icon
+import { keyframes } from "@emotion/react"; // For keyframe animation
 
 const defaultTheme = createTheme();
+
+// Define the animation keyframes
+const checkmarkAnimation = keyframes`
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+`;
 
 const LoginForm = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -25,6 +46,9 @@ const LoginForm = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMessage, setDialogMessage] = useState("");
+  const [dialogSuccess, setDialogSuccess] = useState(false); // To track if the message is a success
 
   const handleInitialLogin = async (event) => {
     event.preventDefault();
@@ -33,21 +57,16 @@ const LoginForm = () => {
     try {
       // Simulate API call to send OTP
       console.log("Sending OTP to:", phoneNumber);
-      // Replace with your actual API call
-      // const response = await fetch('/api/login-with-otp', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ phoneNumber, password }),
-      // });
-      // if (!response.ok) throw new Error('Login failed');
-
-      // Simulate a successful response
       await new Promise((resolve) => setTimeout(resolve, 1500));
       setIsOtpSent(true);
-      alert("OTP sent to your phone!");
+      setDialogMessage("OTP sent to your phone!");
+      setDialogSuccess(true); // Set to true for a successful message
+      setDialogOpen(true);
     } catch (error) {
       console.error("Login error:", error);
-      alert("Login failed. Please check your credentials.");
+      setDialogMessage("Login failed. Please check your credentials.");
+      setDialogSuccess(false); // Set to false for an error message
+      setDialogOpen(true);
     } finally {
       setLoading(false);
     }
@@ -60,24 +79,24 @@ const LoginForm = () => {
     try {
       // Simulate API call to verify OTP
       console.log("Verifying OTP:", otp);
-      // Replace with your actual API call
-      // const response = await fetch('/api/verify-otp', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ phoneNumber, otp }),
-      // });
-      // if (!response.ok) throw new Error('OTP verification failed');
-
-      // Simulate a successful response
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      alert("OTP verified successfully! You are now logged in.");
-      // Redirect or store authentication token here
+      setDialogMessage("OTP verified successfully! You are now logged in.");
+      setDialogSuccess(true);
+      setDialogOpen(true);
     } catch (error) {
       console.error("OTP error:", error);
-      alert("OTP verification failed. Please try again.");
+      setDialogMessage("OTP verification failed. Please try again.");
+      setDialogSuccess(false);
+      setDialogOpen(true);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCloseDialog = () => {
+    setDialogOpen(false);
+    setDialogMessage("");
+    setDialogSuccess(false);
   };
 
   return (
@@ -103,9 +122,9 @@ const LoginForm = () => {
             component="form"
             onSubmit={isOtpSent ? handleOtpVerification : handleInitialLogin}
             noValidate
-            sx={{ mt: 1, width: "100%" }}
+            sx={{ mt: 1, width: "100%", position: "relative" }}
           >
-            <Fade in={!isOtpSent} timeout={500} unmountOnExit>
+            {!isOtpSent ? (
               <Box>
                 <TextField
                   margin="normal"
@@ -152,9 +171,7 @@ const LoginForm = () => {
                   {loading ? "Sending OTP..." : "Sign In"}
                 </Button>
               </Box>
-            </Fade>
-
-            <Fade in={isOtpSent} timeout={500} unmountOnExit>
+            ) : (
               <Box>
                 <TextField
                   margin="normal"
@@ -178,7 +195,7 @@ const LoginForm = () => {
                   {loading ? "Verifying..." : "Verify OTP"}
                 </Button>
               </Box>
-            </Fade>
+            )}
 
             <Box
               sx={{
@@ -197,6 +214,38 @@ const LoginForm = () => {
           </Box>
         </Paper>
       </Container>
+      <Dialog
+        open={dialogOpen}
+        onClose={handleCloseDialog}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle
+          id="alert-dialog-title"
+          sx={{ display: "flex", alignItems: "center", gap: 1 }}
+        >
+          {dialogSuccess && (
+            <CheckCircleOutlineIcon
+              sx={{
+                color: "success.main",
+                fontSize: 32,
+                animation: `${checkmarkAnimation} 0.5s ease-out`,
+              }}
+            />
+          )}
+          {"Login Status"}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            {dialogMessage}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog} autoFocus>
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
     </ThemeProvider>
   );
 };

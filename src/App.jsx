@@ -1,10 +1,11 @@
 import React from "react";
-import LoginForm from "./components/LoginPage";
+// import LoginForm from "./components/LoginPage";
+import DashboardPage from "./components/HomePage";
 
 function App() {
   return (
     <div className="App">
-      <LoginForm />
+      <DashboardPage />
     </div>
   );
 }
