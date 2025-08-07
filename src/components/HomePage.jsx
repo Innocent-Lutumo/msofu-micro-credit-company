@@ -24,6 +24,8 @@ import {
   DialogContentText,
   DialogActions,
   TablePagination,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -41,6 +43,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import InfoIcon from "@mui/icons-material/Info";
 
+// --- Theme Definitions ---
 const lightTheme = createTheme({
   palette: {
     mode: "light",
@@ -49,13 +52,13 @@ const lightTheme = createTheme({
       paper: "#ffffff",
     },
     primary: {
-      main: "#1976d2",
+      main: "#4caf50", // A standard green
     },
     secondary: {
-      main: "#f48fb1",
+      main: "#81c784", // A lighter green
     },
-    headerBlue: {
-      main: "#1976d2",
+    headerGreen: {
+      main: "#388e3c", // A darker green for the header
     },
   },
 });
@@ -68,31 +71,20 @@ const darkTheme = createTheme({
       paper: "#1e1e1e",
     },
     primary: {
-      main: "#90caf9",
+      main: "#81c784", // A lighter green for dark mode
     },
     secondary: {
-      main: "#f48fb1",
+      main: "#66bb6a", // A medium green
     },
-    headerBlue: {
-      main: "#1976d2",
+    headerGreen: {
+      main: "#388e3c", // Dark green for dark mode header
     },
   },
 });
 
-const initialApplicants = Array.from({ length: 25 }, (_, i) => ({
-  id: i + 1,
-  name: `Applicant ${i + 1}`,
-  passportImage: `https://images.unsplash.com/photo-15${5000 + i}`,
-  nationalIdImage: `https://images.unsplash.com/photo-15${6000 + i}`,
-  nationalId: `ID${i + 1}`,
-  phoneNumber: `+12345678${(i + 1).toString().padStart(2, "0")}`,
-  status: "waiting for confirmation",
-}));
-
 const drawerWidthLeft = 200;
 const drawerWidthRight = 300;
 
-// Helper function to get value from localStorage or return a default
 const getStoredValue = (key, defaultValue) => {
   try {
     const storedValue = localStorage.getItem(key);
@@ -104,21 +96,68 @@ const getStoredValue = (key, defaultValue) => {
 };
 
 const DashboardPage = () => {
-  const [applicants, setApplicants] = useState(initialApplicants);
-  const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
-  const [rightDrawerOpen, setRightDrawerOpen] = useState(true);
+  const [applicants, setApplicants] = useState([]);
+  const [leftDrawerOpen, setLeftDrawerOpen] = useState(true);
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [mode, setMode] = useState("light");
   const [searchTerm, setSearchTerm] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [isUnauthorized, setIsUnauthorized] = useState(false);
+  // User name is now a static value
+  const [user] = useState("Credit Officer");
 
-  // Initialize state from localStorage or use default values
   const [page, setPage] = useState(() => getStoredValue("tablePage", 0));
   const [rowsPerPage, setRowsPerPage] = useState(() =>
     getStoredValue("tableRowsPerPage", 10)
   );
 
-  // Use useEffect to save state to localStorage whenever it changes
+  useEffect(() => {
+    const token = localStorage.getItem("access");
+
+    if (!token) {
+      setIsUnauthorized(true);
+      setIsLoading(false);
+      return;
+    }
+
+    const fetchApplicants = async () => {
+      try {
+        const response = await fetch(
+          "http://192.168.100.142:8000/api/admin/loan-applications/",
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response.status === 401) {
+          setIsUnauthorized(true);
+          setIsLoading(false);
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setApplicants(data);
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Failed to fetch applicants:", error);
+        setIsError(true);
+        setIsLoading(false);
+      }
+    };
+
+    fetchApplicants();
+  }, []);
+
   useEffect(() => {
     localStorage.setItem("tablePage", JSON.stringify(page));
   }, [page]);
@@ -136,7 +175,7 @@ const DashboardPage = () => {
             ...prevNotes,
             {
               id: Date.now(),
-              message: `${newApplicant.name}'s application was ${newStatus}.`,
+              message: `${newApplicant.user.username}'s application was ${newStatus}.`,
               applicantId: newApplicant.id,
             },
           ]);
@@ -184,7 +223,7 @@ const DashboardPage = () => {
   const currentTheme = mode === "dark" ? darkTheme : lightTheme;
 
   const filteredApplicants = applicants.filter((applicant) =>
-    applicant.name.toLowerCase().includes(searchTerm.toLowerCase())
+    applicant.user.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -201,7 +240,7 @@ const DashboardPage = () => {
           position="fixed"
           sx={{
             width: "100%",
-            bgcolor: currentTheme.palette.headerBlue.main,
+            bgcolor: currentTheme.palette.headerGreen.main,
             zIndex: 1300,
           }}
         >
@@ -211,7 +250,7 @@ const DashboardPage = () => {
               aria-label="toggle left drawer"
               onClick={toggleLeftDrawer}
               edge="start"
-              sx={{ mr: 2 }}
+              sx={{ mr: 2, color: "white" }}
             >
               {leftDrawerOpen ? <ChevronLeftIcon /> : <MenuIcon />}
             </IconButton>
@@ -219,7 +258,7 @@ const DashboardPage = () => {
               variant="h6"
               noWrap
               component="div"
-              sx={{ flexGrow: 1 }}
+              sx={{ flexGrow: 1, color: "white" }}
             >
               Credit Officer Dashboard
             </Typography>
@@ -248,7 +287,7 @@ const DashboardPage = () => {
                   justifyContent: "center",
                 }}
               >
-                <SearchIcon />
+                <SearchIcon sx={{ color: "white" }} />
               </Box>
               <InputBase
                 placeholder="Search…"
@@ -256,7 +295,7 @@ const DashboardPage = () => {
                 value={searchTerm}
                 onChange={handleSearch}
                 sx={{
-                  color: "inherit",
+                  color: "white",
                   "& .MuiInputBase-input": {
                     padding: currentTheme.spacing(
                       1,
@@ -279,6 +318,7 @@ const DashboardPage = () => {
                 color="inherit"
                 aria-label="toggle mode"
                 onClick={toggleDarkMode}
+                sx={{ color: "white" }}
               >
                 {mode === "dark" ? <Brightness2Icon /> : <WbSunnyIcon />}
               </IconButton>
@@ -288,6 +328,7 @@ const DashboardPage = () => {
                 color="inherit"
                 aria-label="show notifications"
                 onClick={toggleRightDrawer}
+                sx={{ color: "white" }}
               >
                 <NotificationsIcon />
               </IconButton>
@@ -297,6 +338,7 @@ const DashboardPage = () => {
                 color="inherit"
                 aria-label="about"
                 onClick={handleAboutOpen}
+                sx={{ color: "white" }}
               >
                 <InfoIcon />
               </IconButton>
@@ -339,8 +381,15 @@ const DashboardPage = () => {
                     width: "100%",
                   }}
                 >
-                  <AccountCircleIcon sx={{ fontSize: 40, mr: 2 }} />
-                  <Typography variant="h6">User Name</Typography>
+                  <AccountCircleIcon
+                    sx={{ fontSize: 40, mr: 2, color: "green" }}
+                  />
+                  <Typography
+                    variant="h6"
+                    sx={{ color: currentTheme.palette.text.primary }}
+                  >
+                    {user || "User Name"}
+                  </Typography>
                 </Box>
                 <Divider sx={{ mb: 2, width: "100%" }} />
                 <Button
@@ -382,8 +431,8 @@ const DashboardPage = () => {
         >
           <Paper elevation={3} sx={{ padding: 4, borderRadius: 2 }}>
             <Box sx={{ mb: 4 }}>
-              <Typography variant="h5" gutterBottom>
-                Welcome!
+              <Typography variant="h5" color="primary" gutterBottom>
+                Welcome{user ? `, ${user}` : ""}!
               </Typography>
               <Typography variant="body1" color="text.secondary">
                 This page displays a list of loan applicants awaiting your
@@ -391,124 +440,200 @@ const DashboardPage = () => {
               </Typography>
             </Box>
 
-            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
+            <Typography
+              variant="h5"
+              gutterBottom
+              sx={{ mb: 3, color: "primary" }}
+            >
               Loan Applicants
             </Typography>
-            <TableContainer component={Paper}>
-              <Table sx={{ minWidth: 650 }} aria-label="loan applicants table">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell align="right">Phone Number</TableCell>
-                    <TableCell align="right">National ID</TableCell>
-                    <TableCell align="center">Passport Image</TableCell>
-                    <TableCell align="center">National ID Image</TableCell>
-                    <TableCell align="center">Status</TableCell>
-                    <TableCell align="center">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredApplicants
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((applicant) => (
-                      <TableRow key={applicant.id}>
-                        <TableCell component="th" scope="row">
-                          {applicant.name}
+
+            {isUnauthorized ? (
+              <Box sx={{ mt: 4 }}>
+                <Alert severity="warning">
+                  You are not authorized. Please log in to view this page.
+                </Alert>
+              </Box>
+            ) : isLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+                <CircularProgress color="primary" />
+                <Typography variant="h6" sx={{ ml: 2, color: "primary" }}>
+                  Loading applicants...
+                </Typography>
+              </Box>
+            ) : isError ? (
+              <Box sx={{ mt: 4 }}>
+                <Alert severity="error">
+                  Failed to load applicants. Please try again later.
+                </Alert>
+              </Box>
+            ) : (
+              <>
+                <TableContainer component={Paper}>
+                  <Table
+                    sx={{ minWidth: 650 }}
+                    aria-label="loan applicants table"
+                  >
+                    <TableHead
+                      // sx={{ bgcolor: currentTheme.palette.headerGreen.main }}
+                    >
+                      <TableRow>
+                        <TableCell sx={{ color: "green" }}>Username</TableCell>
+                        <TableCell align="right" sx={{ color: "green" }}>
+                          Phone Number
                         </TableCell>
-                        <TableCell align="right">
-                          {applicant.phoneNumber}
+                        <TableCell align="right" sx={{ color: "green" }}>
+                          National ID
                         </TableCell>
-                        <TableCell align="right">
-                          {applicant.nationalId}
+                        <TableCell align="right" sx={{ color: "green" }}>
+                          Loan Amount
                         </TableCell>
-                        <TableCell align="center">
-                          <CardMedia
-                            component="img"
-                            sx={{
-                              width: 50,
-                              height: 50,
-                              borderRadius: "50%",
-                              mx: "auto",
-                            }}
-                            image={applicant.passportImage}
-                            alt={`${applicant.name} Passport`}
-                          />
+                        <TableCell align="center" sx={{ color: "green" }}>
+                          Passport Image
                         </TableCell>
-                        <TableCell align="center">
-                          <CardMedia
-                            component="img"
-                            sx={{
-                              width: 100,
-                              height: 50,
-                              objectFit: "contain",
-                              mx: "auto",
-                            }}
-                            image={applicant.nationalIdImage}
-                            alt={`${applicant.name} National ID`}
-                          />
+                        <TableCell align="center" sx={{ color: "green" }}>
+                          NIDA Front
                         </TableCell>
-                        <TableCell align="center">
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color:
-                                applicant.status === "accepted"
-                                  ? "green"
-                                  : applicant.status === "rejected"
-                                  ? "red"
-                                  : "gray",
-                              fontWeight: "bold",
-                            }}
-                          >
-                            {applicant.status}
-                          </Typography>
+                        <TableCell align="center" sx={{ color: "green" }}>
+                          NIDA Back
                         </TableCell>
-                        <TableCell align="center">
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "center",
-                              gap: 1,
-                            }}
-                          >
-                            <Tooltip title="Accept">
-                              <IconButton
-                                color="success"
-                                onClick={() =>
-                                  handleStatusUpdate(applicant.id, "accepted")
-                                }
-                                disabled={applicant.status === "accepted"}
-                              >
-                                <CheckCircleOutlineIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Reject">
-                              <IconButton
-                                color="error"
-                                onClick={() =>
-                                  handleStatusUpdate(applicant.id, "rejected")
-                                }
-                                disabled={applicant.status === "rejected"}
-                              >
-                                <CancelOutlinedIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
+                        <TableCell align="center" sx={{ color: "green" }}>
+                          Status
+                        </TableCell>
+                        <TableCell align="center" sx={{ color: "green" }}>
+                          Actions
                         </TableCell>
                       </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <TablePagination
-              rowsPerPageOptions={[5, 10, 25]}
-              component="div"
-              count={filteredApplicants.length}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={handleChangePage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-            />
+                    </TableHead>
+                    <TableBody>
+                      {filteredApplicants
+                        .slice(
+                          page * rowsPerPage,
+                          page * rowsPerPage + rowsPerPage
+                        )
+                        .map((applicant) => (
+                          <TableRow key={applicant.id}>
+                            <TableCell component="th" scope="row">
+                              {applicant.user.username}
+                            </TableCell>
+                            <TableCell align="right">
+                              {applicant.user.phone}
+                            </TableCell>
+                            <TableCell align="right">
+                              {applicant.user.national_id}
+                            </TableCell>
+                            <TableCell align="right">
+                              {`Tsh. ${applicant.loan_amount}`}
+                            </TableCell>
+                            <TableCell align="center">
+                              <CardMedia
+                                component="img"
+                                sx={{
+                                  width: 50,
+                                  height: 50,
+                                  borderRadius: "50%",
+                                  mx: "auto",
+                                }}
+                                image={`http://192.168.100.142:8000${applicant.passport_picture}`}
+                                alt={`${applicant.user.username} Passport`}
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              <CardMedia
+                                component="img"
+                                sx={{
+                                  width: 100,
+                                  height: 50,
+                                  objectFit: "contain",
+                                  mx: "auto",
+                                }}
+                                image={`http://192.168.100.142:8000${applicant.nida_front}`}
+                                alt={`${applicant.user.username} NIDA Front`}
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              <CardMedia
+                                component="img"
+                                sx={{
+                                  width: 100,
+                                  height: 50,
+                                  objectFit: "contain",
+                                  mx: "auto",
+                                }}
+                                image={`http://192.168.100.142:8000${applicant.nida_back}`}
+                                alt={`${applicant.user.username} NIDA Back`}
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color:
+                                    applicant.status === "accepted"
+                                      ? "primary.main"
+                                      : applicant.status === "rejected"
+                                      ? "red"
+                                      : "gray",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                {applicant.status}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  justifyContent: "center",
+                                  gap: 1,
+                                }}
+                              >
+                                <Tooltip title="Accept">
+                                  <IconButton
+                                    color="success"
+                                    onClick={() =>
+                                      handleStatusUpdate(
+                                        applicant.id,
+                                        "accepted"
+                                      )
+                                    }
+                                    disabled={applicant.status === "accepted"}
+                                  >
+                                    <CheckCircleOutlineIcon />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Reject">
+                                  <IconButton
+                                    color="error"
+                                    onClick={() =>
+                                      handleStatusUpdate(
+                                        applicant.id,
+                                        "rejected"
+                                      )
+                                    }
+                                    disabled={applicant.status === "rejected"}
+                                  >
+                                    <CancelOutlinedIcon />
+                                  </IconButton>
+                                </Tooltip>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <TablePagination
+                  rowsPerPageOptions={[5, 10, 25]}
+                  component="div"
+                  count={filteredApplicants.length}
+                  rowsPerPage={rowsPerPage}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                />
+              </>
+            )}
           </Paper>
         </Box>
 
@@ -531,7 +656,11 @@ const DashboardPage = () => {
           {rightDrawerOpen && (
             <>
               <Box sx={{ mt: 10 }}>
-                <Typography variant="h6" gutterBottom>
+                <Typography
+                  variant="h6"
+                  gutterBottom
+                  sx={{ color: currentTheme.palette.text.primary }}
+                >
                   Notifications
                 </Typography>
                 <Divider sx={{ mb: 2 }} />

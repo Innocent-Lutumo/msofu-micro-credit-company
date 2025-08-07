@@ -74,9 +74,7 @@ const LoginForm = () => {
       // Validate phone number format: +255 and 13 digits total
       const phoneRegex = /^\+255\d{9}$/;
       if (!phoneRegex.test(phone)) {
-        setPhoneError(
-          "Phone number is not correct."
-        );
+        setPhoneError("Phone number is not correct.");
         hasError = true;
       }
     }
@@ -110,8 +108,8 @@ const LoginForm = () => {
       if (response.ok) {
         // --- Store both access and refresh tokens in local storage ---
         const { access, refresh } = data;
-        localStorage.setItem("accessToken", access);
-        localStorage.setItem("refreshToken", refresh);
+        localStorage.setItem("access", access);
+        localStorage.setItem("refresh", refresh);
 
         setDialogMessage("Login successful!");
         setDialogSuccess(true);
