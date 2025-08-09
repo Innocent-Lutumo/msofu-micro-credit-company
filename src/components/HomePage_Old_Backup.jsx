@@ -201,51 +201,14 @@ const DashboardPage = () => {
 
   const API_BASE_URL = "http://192.168.100.142:8000";
 
-  // Centralized CSRF token retrieval function
-  const getCSRFToken = async () => {
-    // Try multiple methods to get CSRF token
-    let csrfToken =
-      document.querySelector("[name=csrfmiddlewaretoken]")?.value ||
-      document
-        .querySelector('meta[name="csrf-token"]')
-        ?.getAttribute("content") ||
-      document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("csrftoken="))
-        ?.split("=")[1];
-
-    // If no token found, try to fetch it from the backend
-    if (!csrfToken) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/csrf/`, {
-          method: "GET",
-          credentials: "include", // Important for CSRF cookies
-        });
-        if (response.ok) {
-          const data = await response.json();
-          csrfToken = data.csrfToken;
-          // Update meta tag for future use
-          const metaTag = document.querySelector('meta[name="csrf-token"]');
-          if (metaTag) {
-            metaTag.setAttribute("content", csrfToken);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch CSRF token:", error);
-      }
-    }
-
-    return csrfToken;
-  };
-
-  const fetchApplicants = async (token) => {
+  const fetchApplicants = async () => {
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/admin/loan-applications/`,
         {
           method: "GET",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${localStorage.getItem("access")}`,
             "Content-Type": "application/json",
           },
         }
@@ -270,12 +233,12 @@ const DashboardPage = () => {
     }
   };
 
-  const fetchUserProfile = async (token) => {
+  const fetchUserProfile = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/profile/`, {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${localStorage.getItem("access")}`,
           "Content-Type": "application/json",
         },
       });
@@ -312,12 +275,12 @@ const DashboardPage = () => {
     }
   };
 
-  const fetchNotifications = async (token) => {
+  const fetchNotifications = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/notifications/`, {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${localStorage.getItem("access")}`,
           "Content-Type": "application/json",
         },
       });
@@ -375,7 +338,7 @@ const DashboardPage = () => {
     }
 
     fetchApplicants(token);
-    fetchNotifications(token);
+    fetchNotifications();
     fetchUserProfile(token);
   }, []);
 
@@ -453,12 +416,11 @@ const DashboardPage = () => {
     );
   };
 
-  const performStatusUpdate = async (id, newStatus, actionText, applicant) => {
+  const performStatusUpdate = async (id, newStatus, actionText) => {
     try {
       console.log(`Updating status for applicant ${id} to ${newStatus}`);
 
       // Get CSRF token using centralized function
-      const csrfToken = await getCSRFToken();
 
       const response = await fetch(
         `${API_BASE_URL}/api/admin/loan-applications/${id}/status/`,
@@ -466,8 +428,7 @@ const DashboardPage = () => {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            "X-CSRFToken": csrfToken,
+            Authorization: `Bearer ${localStorage.getItem("access")}`,
           },
           body: JSON.stringify({ status: newStatus }),
         }
@@ -500,7 +461,7 @@ const DashboardPage = () => {
       }
 
       // Refresh notifications
-      fetchNotifications(token);
+      fetchNotifications();
 
       // Show success message
       showAlert(`Application ${actionText}ed successfully!`, "Success");
@@ -533,7 +494,6 @@ const DashboardPage = () => {
     if (!token) return;
 
     // Get CSRF token using centralized function
-    const csrfToken = await getCSRFToken();
 
     try {
       const response = await fetch(
@@ -542,7 +502,6 @@ const DashboardPage = () => {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,
-            "X-CSRFToken": csrfToken,
           },
         }
       );
@@ -791,7 +750,6 @@ const DashboardPage = () => {
     console.log("Sender ID:", currentUserId, "Type:", typeof currentUserId);
 
     // Get CSRF token using centralized function
-    const csrfToken = await getCSRFToken();
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/notifications/`, {
@@ -799,7 +757,6 @@ const DashboardPage = () => {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-          "X-CSRFToken": csrfToken,
         },
         body: JSON.stringify(messageData),
       });
@@ -846,7 +803,6 @@ const DashboardPage = () => {
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${token}`,
-                "X-CSRFToken": csrfToken,
               },
               body: JSON.stringify(alternativeMessageData),
             }
@@ -1110,8 +1066,6 @@ const DashboardPage = () => {
     const token = localStorage.getItem("access");
     if (!token) return;
 
-    // Get CSRF token using centralized function
-    const csrfToken = await getCSRFToken();
 
     try {
       const response = await fetch(
@@ -1120,7 +1074,6 @@ const DashboardPage = () => {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,
-            "X-CSRFToken": csrfToken,
           },
         }
       );
