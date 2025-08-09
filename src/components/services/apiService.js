@@ -1,39 +1,6 @@
 import { API_BASE_URL } from "../common/constants";
 
 // Centralized CSRF token retrieval function
-export const getCSRFToken = async () => {
-  // Try multiple methods to get CSRF token
-  let csrfToken = 
-    document.querySelector("[name=csrfmiddlewaretoken]")?.value ||
-    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("csrftoken="))
-      ?.split("=")[1];
-
-  // If no token found, try to fetch it from the backend
-  if (!csrfToken) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/csrf/`, {
-        method: "GET",
-        credentials: "include", // Important for CSRF cookies
-      });
-      if (response.ok) {
-        const data = await response.json();
-        csrfToken = data.csrfToken;
-        // Update meta tag for future use
-        const metaTag = document.querySelector('meta[name="csrf-token"]');
-        if (metaTag) {
-          metaTag.setAttribute('content', csrfToken);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch CSRF token:", error);
-    }
-  }
-
-  return csrfToken;
-};
 
 export const fetchApplicants = async (token) => {
   try {
@@ -150,7 +117,6 @@ export const updateApplicationStatus = async (id, newStatus) => {
     console.log(`Updating status for applicant ${id} to ${newStatus}`);
 
     // Get CSRF token using centralized function
-    const csrfToken = await getCSRFToken();
 
     const response = await fetch(
       `${API_BASE_URL}/api/admin/loan-applications/${id}/status/`,
@@ -159,7 +125,6 @@ export const updateApplicationStatus = async (id, newStatus) => {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-          "X-CSRFToken": csrfToken,
         },
         body: JSON.stringify({ status: newStatus }),
       }
@@ -192,7 +157,6 @@ export const deleteApplication = async (id) => {
   }
 
   // Get CSRF token using centralized function
-  const csrfToken = await getCSRFToken();
 
   try {
     const response = await fetch(
@@ -201,7 +165,6 @@ export const deleteApplication = async (id) => {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
-          "X-CSRFToken": csrfToken,
         },
       }
     );
@@ -224,7 +187,6 @@ export const sendNotification = async (messageData) => {
   }
 
   // Get CSRF token using centralized function
-  const csrfToken = await getCSRFToken();
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/notifications/`, {
@@ -232,7 +194,6 @@ export const sendNotification = async (messageData) => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
-        "X-CSRFToken": csrfToken,
       },
       body: JSON.stringify(messageData),
     });
@@ -256,7 +217,6 @@ export const deleteNotification = async (notificationId) => {
   }
 
   // Get CSRF token using centralized function
-  const csrfToken = await getCSRFToken();
 
   try {
     const response = await fetch(
@@ -265,7 +225,6 @@ export const deleteNotification = async (notificationId) => {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
-          "X-CSRFToken": csrfToken,
         },
       }
     );
