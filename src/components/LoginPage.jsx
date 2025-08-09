@@ -184,7 +184,7 @@ const pulseGlow = keyframes`
 
 const LoginForm = () => {
   const navigate = useNavigate();
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState("+255");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -350,18 +350,47 @@ const LoginForm = () => {
                 margin="normal"
                 required
                 fullWidth
-                placeholder="+255..."
+                placeholder="+255 Enter your phone number"
                 id="phone-number"
-                label="Phone Number"
+                label="Phone Number (Tanzania)"
                 name="phone"
                 autoComplete="tel"
                 autoFocus
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Ensure +255 prefix is always maintained
+                  if (value.startsWith("+255")) {
+                    setPhone(value);
+                  } else if (value.length < 4) {
+                    setPhone("+255");
+                  }
+                }}
                 error={!!phoneError}
-                helperText={phoneError}
+                helperText={
+                  phoneError ||
+                  "Tanzania country code (+255) is automatically included"
+                }
                 sx={{
                   animation: `${slideInFromLeft} 0.6s ease-out 0.7s both`,
+                }}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            color: "#4caf50",
+                            fontWeight: "bold",
+                            userSelect: "none",
+                          }}
+                        >
+                          🇹🇿
+                        </Typography>
+                      </InputAdornment>
+                    ),
+                  },
                 }}
               />
               <TextField

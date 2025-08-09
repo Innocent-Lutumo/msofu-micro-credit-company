@@ -74,11 +74,17 @@ const RightSidebar = ({
             <Divider sx={{ mb: 2 }} />
             {notifications.length > 0 ? (
               notifications.map((note) => {
-                // Determine if this message was sent by the current user
-                const isFromCurrentUser = String(note.sender) === String(user.id);
+                // Determine if this message was sent by the current user (admin)
+                const isFromCurrentUser =
+                  String(note.sender) === String(user.id);
                 const senderDisplayName = isFromCurrentUser
                   ? "You"
-                  : note.sender_username || "Unknown";
+                  : note.sender_username || "Unknown User";
+
+                // Determine who the admin would be replying to
+                const replyToUser = isFromCurrentUser
+                  ? note.receiver_username || "Unknown User"
+                  : note.sender_username || "Unknown User";
 
                 return (
                   <Box
@@ -102,6 +108,14 @@ const RightSidebar = ({
                       "&:hover .delete-button": {
                         opacity: 1,
                       },
+                      "&:hover": {
+                        bgcolor: readNotifications.has(note.id)
+                          ? "action.selected"
+                          : "primary.main",
+                        color: readNotifications.has(note.id)
+                          ? "text.primary"
+                          : "white",
+                      },
                     }}
                     onClick={() => onNotificationClick(note)}
                   >
@@ -117,25 +131,44 @@ const RightSidebar = ({
                           sx={{
                             display: "flex",
                             alignItems: "center",
+                            justifyContent: "space-between",
                             mb: 0.5,
                           }}
                         >
-                          <ChatIcon
-                            sx={{
-                              fontSize: 16,
-                              mr: 0.5,
-                              color: currentTheme.palette.text.secondary,
-                            }}
-                          />
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              fontWeight: "bold",
-                              color: currentTheme.palette.text.primary,
-                            }}
-                          >
-                            {senderDisplayName}
-                          </Typography>
+                          <Box sx={{ display: "flex", alignItems: "center" }}>
+                            <ChatIcon
+                              sx={{
+                                fontSize: 16,
+                                mr: 0.5,
+                                color: currentTheme.palette.text.secondary,
+                              }}
+                            />
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                fontWeight: "bold",
+                                color: currentTheme.palette.text.primary,
+                              }}
+                            >
+                              {senderDisplayName}
+                            </Typography>
+                          </Box>
+                          {!isFromCurrentUser && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                fontSize: "0.65rem",
+                                color: "primary.main",
+                                fontWeight: "bold",
+                                bgcolor: "primary.light",
+                                px: 0.5,
+                                py: 0.25,
+                                borderRadius: 0.5,
+                              }}
+                            >
+                              Click to reply
+                            </Typography>
+                          )}
                         </Box>
                         <Typography
                           variant="body2"

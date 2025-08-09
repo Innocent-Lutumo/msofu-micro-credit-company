@@ -29,7 +29,9 @@ const ConversationDialog = ({
   useEffect(() => {
     if (open && conversationHistory.length > 0) {
       setTimeout(() => {
-        const conversationContent = document.getElementById("conversation-content");
+        const conversationContent = document.getElementById(
+          "conversation-content"
+        );
         if (conversationContent) {
           conversationContent.scrollTop = conversationContent.scrollHeight;
         }
@@ -53,12 +55,13 @@ const ConversationDialog = ({
         </IconButton>
         <Box sx={{ display: "flex", flexDirection: "column" }}>
           <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+            Conversation with{" "}
             {conversationParticipants.otherUser?.username ||
               currentReplyUser ||
               "Applicant"}
           </Typography>
           <Typography variant="caption" sx={{ opacity: 0.8 }}>
-            {conversationParticipants.otherUser?.phone || "Phone not available"}
+            {conversationParticipants.otherUser?.phone || "Loan Applicant"}
           </Typography>
         </Box>
       </DialogTitle>
@@ -78,14 +81,17 @@ const ConversationDialog = ({
               const isFromCurrentUser = String(msg.sender) === String(user.id);
               const isConsecutive =
                 index > 0 &&
-                String(conversationHistory[index - 1].sender) === String(msg.sender);
+                String(conversationHistory[index - 1].sender) ===
+                  String(msg.sender);
 
               return (
                 <Box
                   key={`${msg.id}-${index}`}
                   sx={{
                     display: "flex",
-                    justifyContent: isFromCurrentUser ? "flex-end" : "flex-start",
+                    justifyContent: isFromCurrentUser
+                      ? "flex-end"
+                      : "flex-start",
                     mb: isConsecutive ? 0.5 : 2,
                     alignItems: "flex-end",
                   }}
@@ -132,9 +138,24 @@ const ConversationDialog = ({
                           display: "block",
                           mb: 0.5,
                           opacity: 0.8,
+                          color: "primary.main",
                         }}
                       >
-                        {msg.sender_username || "Unknown User"}
+                        {msg.sender_username || "Unknown User"} (Applicant)
+                      </Typography>
+                    )}
+                    {!isConsecutive && isFromCurrentUser && (
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: "bold",
+                          display: "block",
+                          mb: 0.5,
+                          opacity: 0.8,
+                          color: "white",
+                        }}
+                      >
+                        You (Admin)
                       </Typography>
                     )}
                     <Typography
@@ -201,7 +222,11 @@ const ConversationDialog = ({
             fullWidth
             multiline
             maxRows={3}
-            placeholder="Type your message..."
+            placeholder={`Reply to ${
+              conversationParticipants.otherUser?.username ||
+              currentReplyUser ||
+              "applicant"
+            }...`}
             value={replyMessage}
             onChange={(e) => setReplyMessage(e.target.value)}
             onKeyDown={(e) => {

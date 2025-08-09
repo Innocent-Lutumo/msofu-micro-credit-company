@@ -244,6 +244,11 @@ const HomePage = () => {
 
   // Notification handlers
   const handleNotificationClick = (notification) => {
+    if (!notification || !notification.id) {
+      console.error("Invalid notification:", notification);
+      return;
+    }
+
     // Mark as read
     setReadNotifications((prev) => {
       const newSet = new Set(prev);
@@ -258,13 +263,34 @@ const HomePage = () => {
 
     setSelectedNotification(notification);
 
-    // Get conversation history for this notification
+    // Determine who the admin is replying to
+    let otherUserId, otherUserName;
+
+    // Check if the current user (admin) sent this notification
+    if (String(notification.sender) === String(user.id)) {
+      // Admin sent this message, so reply to the receiver
+      otherUserId = notification.receiver;
+      otherUserName = notification.receiver_username || "Unknown User";
+    } else {
+      // Someone else sent this message to admin, so reply to the sender
+      otherUserId = notification.sender;
+      otherUserName = notification.sender_username || "Unknown User";
+    }
+
+    console.log("=== NOTIFICATION CLICK DEBUG ===");
+    console.log("Clicked notification:", notification);
+    console.log("Current user (admin):", user);
+    console.log("Other user ID:", otherUserId);
+    console.log("Other user name:", otherUserName);
+    console.log("Admin will reply to:", otherUserName);
+
+    // Get conversation history between admin and this specific user
     const relatedNotifications = notifications.filter(
       (note) =>
-        (note.sender === notification.sender &&
-          note.receiver === notification.receiver) ||
-        (note.sender === notification.receiver &&
-          note.receiver === notification.sender)
+        (String(note.sender) === String(user.id) &&
+          String(note.receiver) === String(otherUserId)) ||
+        (String(note.sender) === String(otherUserId) &&
+          String(note.receiver) === String(user.id))
     );
 
     const sortedConversation = relatedNotifications.sort(
@@ -273,22 +299,16 @@ const HomePage = () => {
 
     setConversationHistory(sortedConversation);
 
-    // Set conversation participants
-    const otherUserId =
-      notification.sender === user.id
-        ? notification.receiver
-        : notification.sender;
-    const otherUserName =
-      notification.sender === user.id
-        ? notification.receiver_username
-        : notification.sender_username;
-
+    // Set conversation participants - admin and the specific user
     setConversationParticipants({
-      currentUser: user,
+      currentUser: {
+        id: user.id,
+        username: user.username,
+      },
       otherUser: {
         id: otherUserId,
         username: otherUserName,
-        phone: "Phone not available", // You might want to fetch this
+        phone: "Phone not available", // Could be fetched from user data
       },
     });
 
@@ -345,12 +365,103 @@ const HomePage = () => {
       return;
     }
 
+    const token = localStorage.getItem("access");
+    if (!token) {
+      showAlert(
+        "Authentication required. Please log in again.",
+        "Authentication Error"
+      );
+      return;
+    }
+
     try {
-      // Here you would call an API to send the message
-      // For now, we'll just show a success message and close the dialog
-      showAlert("Message sent successfully!", "Success");
+      // Get current user's actual data from the API
+      let currentUserId = user.id;
+      try {
+        const { API_BASE_URL } = await import("./common/constants");
+        const userResponse = await fetch(`${API_BASE_URL}/api/profile/`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          currentUserId = userData.id;
+          console.log("Got actual user data from API:", userData);
+        }
+      } catch (error) {
+        console.log("Could not fetch user data, using default:", error);
+      }
+
+      // Determine the receiver - always use the selected notification as source of truth
+      let receiverId;
+
+      if (String(selectedNotification.sender) === String(currentUserId)) {
+        // If current user (admin) sent the original notification, reply to the receiver
+        receiverId = selectedNotification.receiver;
+      } else {
+        // If someone else sent the notification to admin, reply to the sender
+        receiverId = selectedNotification.sender;
+      }
+
+      // Validate that we have a valid receiver
+      if (!receiverId || String(receiverId) === String(currentUserId)) {
+        showAlert(
+          "Cannot send message: Invalid recipient.",
+          "Invalid Recipient"
+        );
+        return;
+      }
+
+      // FIXED: Correct sender and receiver assignment
+      const messageData = {
+        sender: currentUserId, // Current user is the sender
+        receiver: receiverId, // Other user is the receiver
+        message: replyMessage,
+        sender_username: user.username,
+      };
+
+      console.log("=== MESSAGE SENDING DEBUG ===");
+      console.log("Current user (admin):", user);
+      console.log("Current user ID:", currentUserId);
+      console.log("Selected notification:", selectedNotification);
+      console.log("Conversation participants:", conversationParticipants);
+      console.log("Message data being sent:", messageData);
+      console.log("Receiver ID:", receiverId, "Type:", typeof receiverId);
+      console.log(
+        "Admin is replying to:",
+        conversationParticipants.otherUser?.username
+      );
+
+      // Use the API service to send the notification
+      const { sendNotification } = await import("./services/apiService");
+      const newMessage = await sendNotification(messageData);
+
+      console.log("Message sent successfully:", newMessage);
+
+      // Add the new message to conversation history
+      setConversationHistory((prev) => [
+        ...prev,
+        {
+          ...newMessage,
+          sender_username: user.username,
+        },
+      ]);
+
+      // Clear the message input
       setReplyMessage("");
-      handleReplyDialogClose();
+
+      // Refresh notifications to get the latest messages
+      refreshData();
+
+      showAlert(
+        `Message sent successfully to ${
+          conversationParticipants.otherUser?.username || "applicant"
+        }!`,
+        "Success"
+      );
     } catch (error) {
       console.error("Error sending message:", error);
       showAlert("Failed to send message. Please try again.", "Error");

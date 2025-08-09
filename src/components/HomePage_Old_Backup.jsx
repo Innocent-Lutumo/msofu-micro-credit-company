@@ -37,6 +37,8 @@ import {
   List,
   ListItem,
   ListItemText,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
@@ -66,6 +68,7 @@ import PieChartIcon from "@mui/icons-material/PieChart";
 import SendIcon from "@mui/icons-material/Send";
 import CloseIcon from "@mui/icons-material/Close";
 import ChatIcon from "@mui/icons-material/Chat";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import Avatar from "@mui/material/Avatar";
 import ListItemAvatar from "@mui/material/ListItemAvatar";
 
@@ -113,8 +116,18 @@ const darkTheme = createTheme({
   },
 });
 
-const drawerWidthLeft = 200;
-const drawerWidthRight = 300;
+// Responsive drawer widths
+const getDrawerWidthLeft = (isMobile, isTablet) => {
+  if (isMobile) return 280; // Full width on mobile
+  if (isTablet) return 220; // Smaller on tablet
+  return 200; // Standard on desktop
+};
+
+const getDrawerWidthRight = (isMobile, isTablet) => {
+  if (isMobile) return 320; // Slightly wider on mobile for better readability
+  if (isTablet) return 300; // Medium on tablet
+  return 300; // Standard on desktop
+};
 
 const getStoredValue = (key, defaultValue) => {
   try {
@@ -128,8 +141,13 @@ const getStoredValue = (key, defaultValue) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isTablet = useMediaQuery(theme.breakpoints.down("md"));
+  const isDesktop = useMediaQuery(theme.breakpoints.up("lg"));
+
   const [applicants, setApplicants] = useState([]);
-  const [leftDrawerOpen, setLeftDrawerOpen] = useState(true);
+  const [leftDrawerOpen, setLeftDrawerOpen] = useState(!isMobile); // Auto-close on mobile
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [mode, setMode] = useState("light");
   const [searchTerm, setSearchTerm] = useState("");
@@ -160,6 +178,12 @@ const DashboardPage = () => {
   const [pendingApplicants, setPendingApplicants] = useState(0);
   const [acceptedApplicants, setAcceptedApplicants] = useState(0);
   const [rejectedApplicants, setRejectedApplicants] = useState(0);
+  const [statsData, setStatsData] = useState({
+    total_applications: 0,
+    total_accepted: 0,
+    total_pending: 0,
+    total_rejected: 0,
+  });
   const [selectedImage, setSelectedImage] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutProgress, setLogoutProgress] = useState(100);
@@ -168,7 +192,7 @@ const DashboardPage = () => {
   const [replyMessage, setReplyMessage] = useState("");
   const [conversationHistory, setConversationHistory] = useState([]);
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
-  const [chartsDialogUsers, setChartsDialogUsers] = useState(false);
+  const [chartsDrawerOpen, setChartsDrawerOpen] = useState(false);
   const [selectedApplicant, setSelectedApplicant] = useState(null);
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [applicantDetailsDialogOpen, setApplicantDetailsDialogOpen] =
@@ -198,6 +222,11 @@ const DashboardPage = () => {
   const [confirmMessage, setConfirmMessage] = useState("");
   const [confirmTitle, setConfirmTitle] = useState("Confirm");
   const [confirmAction, setConfirmAction] = useState(null);
+  const [updatingStatus, setUpdatingStatus] = useState(new Set());
+
+  // Responsive values
+  const drawerWidthLeft = getDrawerWidthLeft(isMobile, isTablet);
+  const drawerWidthRight = getDrawerWidthRight(isMobile, isTablet);
 
   const API_BASE_URL = "http://192.168.100.142:8000";
 
@@ -324,7 +353,7 @@ const DashboardPage = () => {
       setNotifications(normalizedNotifications);
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
-      setNotifications([]); 
+      setNotifications([]);
     }
   };
 
@@ -340,19 +369,83 @@ const DashboardPage = () => {
     fetchApplicants(token);
     fetchNotifications();
     fetchUserProfile(token);
+
+    // Set up automatic notification polling every 30 seconds
+    const notificationInterval = setInterval(() => {
+      console.log("Auto-fetching notifications...");
+      fetchNotifications();
+    }, 30000); // 30 seconds
+
+    // Cleanup interval on component unmount
+    return () => {
+      clearInterval(notificationInterval);
+    };
   }, []);
 
+  // Function to save stats data to API
+  const saveStatsData = async (statsData) => {
+    const token = localStorage.getItem("access");
+    if (!token) {
+      console.warn("No authentication token found, skipping stats save");
+      return;
+    }
+
+    try {
+      console.log("Saving stats data:", statsData);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/admin/loan-applications/stats/`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(statsData),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to save stats: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("Stats saved successfully:", result);
+    } catch (error) {
+      console.error("Error saving stats data:", error);
+      // Don't show user error for stats saving as it's background operation
+    }
+  };
+
   useEffect(() => {
-    setTotalApplicants(applicants.length);
-    setPendingApplicants(
-      applicants.filter((app) => app.status === "pending").length
-    );
-    setAcceptedApplicants(
-      applicants.filter((app) => app.status === "accepted").length
-    );
-    setRejectedApplicants(
-      applicants.filter((app) => app.status === "rejected").length
-    );
+    const total = applicants.length;
+    const pending = applicants.filter((app) => app.status === "pending").length;
+    const accepted = applicants.filter(
+      (app) => app.status === "accepted"
+    ).length;
+    const rejected = applicants.filter(
+      (app) => app.status === "rejected"
+    ).length;
+
+    // Update individual state variables (for backward compatibility)
+    setTotalApplicants(total);
+    setPendingApplicants(pending);
+    setAcceptedApplicants(accepted);
+    setRejectedApplicants(rejected);
+
+    // Create stats data object
+    const newStatsData = {
+      total_applications: total,
+      total_accepted: accepted,
+      total_pending: pending,
+      total_rejected: rejected,
+    };
+
+    // Update stats data state
+    setStatsData(newStatsData);
+
+    // Save stats data to API
+    saveStatsData(newStatsData);
   }, [applicants]);
 
   useEffect(() => {
@@ -417,10 +510,22 @@ const DashboardPage = () => {
   };
 
   const performStatusUpdate = async (id, newStatus, actionText) => {
-    try {
-      console.log(`Updating status for applicant ${id} to ${newStatus}`);
+    // Check if this applicant is already being updated
+    if (updatingStatus.has(id)) {
+      console.log(`Update already in progress for applicant ${id}`);
+      return;
+    }
 
-      // Get CSRF token using centralized function
+    // Add to updating set
+    setUpdatingStatus((prev) => new Set([...prev, id]));
+
+    try {
+      console.log(`=== STATUS UPDATE DEBUG ===`);
+      console.log(`Updating status for applicant ${id} to "${newStatus}"`);
+      console.log(
+        `Request URL: ${API_BASE_URL}/api/admin/loan-applications/${id}/status/`
+      );
+      console.log(`Request body:`, { status: newStatus });
 
       const response = await fetch(
         `${API_BASE_URL}/api/admin/loan-applications/${id}/status/`,
@@ -434,11 +539,18 @@ const DashboardPage = () => {
         }
       );
 
+      console.log(`Response status: ${response.status}`);
+
       if (!response.ok) {
         let errorMessage = `HTTP ${response.status}`;
         try {
           const errorData = await response.json();
-          errorMessage = errorData.detail || errorData.message || errorMessage;
+          console.log("Full error response:", errorData);
+          errorMessage =
+            errorData.detail ||
+            errorData.message ||
+            errorData.status?.[0] ||
+            errorMessage;
         } catch (parseError) {
           console.error("Error parsing error response:", parseError);
         }
@@ -448,23 +560,46 @@ const DashboardPage = () => {
       const updatedApplicant = await response.json();
       console.log("Status updated successfully:", updatedApplicant);
 
-      // Update the applicants list
-      setApplicants((prevApplicants) =>
-        prevApplicants.map((applicant) =>
-          applicant.id === id ? updatedApplicant : applicant
-        )
-      );
+      // Simple state update - just update the status of the specific applicant
+      console.log("Updating local state with new status...");
+
+      setApplicants((prevApplicants) => {
+        return prevApplicants.map((applicant) => {
+          if (applicant.id === id) {
+            // Update only the status, keep all other data the same
+            return {
+              ...applicant,
+              status: newStatus,
+            };
+          }
+          return applicant;
+        });
+      });
 
       // Update selected applicant details if it's the same one
       if (selectedApplicantDetails && selectedApplicantDetails.id === id) {
-        setSelectedApplicantDetails(updatedApplicant);
+        console.log("Updating selected applicant details");
+        setSelectedApplicantDetails({
+          ...selectedApplicantDetails,
+          status: newStatus,
+        });
       }
 
-      // Refresh notifications
-      fetchNotifications();
+      console.log("State updates completed successfully");
+
+      // Refresh notifications (in a try-catch to prevent crashes)
+      try {
+        fetchNotifications();
+      } catch (notificationError) {
+        console.error("Error refreshing notifications:", notificationError);
+      }
 
       // Show success message
       showAlert(`Application ${actionText}ed successfully!`, "Success");
+
+      console.log(
+        "Status update completed successfully - no page refresh needed"
+      );
     } catch (error) {
       console.error("Error updating status:", error);
 
@@ -486,14 +621,41 @@ const DashboardPage = () => {
       }
 
       showAlert(userMessage, title);
+    } finally {
+      // Remove from updating set
+      setUpdatingStatus((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(id);
+        return newSet;
+      });
     }
   };
 
-  const handleDeleteApplicant = async (id) => {
-    const token = localStorage.getItem("access");
-    if (!token) return;
+  const handleDeleteApplicant = (id) => {
+    // Find the applicant to get their details for confirmation
+    const applicant = applicants.find((app) => app.id === id);
+    if (!applicant) {
+      showAlert("Applicant not found.", "Error");
+      return;
+    }
 
-    // Get CSRF token using centralized function
+    // Show confirmation dialog
+    const confirmMessage = `Are you sure you want to delete the loan application from ${applicant.user.username}? This action cannot be undone.`;
+
+    showConfirm(confirmMessage, "Delete Application", () =>
+      performDeleteApplicant(id)
+    );
+  };
+
+  const performDeleteApplicant = async (id) => {
+    const token = localStorage.getItem("access");
+    if (!token) {
+      showAlert(
+        "Authentication required. Please log in again.",
+        "Authentication Error"
+      );
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -517,6 +679,15 @@ const DashboardPage = () => {
         handleApplicantDetailsClose();
       }
       fetchNotifications(token);
+
+      // Show success message
+      showAlert("Application deleted successfully!", "Success");
+
+      // Automatically refresh the page after successful delete
+      setTimeout(() => {
+        console.log("Auto-refreshing page after delete...");
+        window.location.reload();
+      }, 1500);
     } catch (error) {
       console.error("Error deleting applicant:", error);
       showAlert(
@@ -528,6 +699,13 @@ const DashboardPage = () => {
 
   const toggleLeftDrawer = () => {
     setLeftDrawerOpen(!leftDrawerOpen);
+  };
+
+  // Close drawer when clicking outside on mobile
+  const handleBackdropClick = () => {
+    if (isMobile && leftDrawerOpen) {
+      setLeftDrawerOpen(false);
+    }
   };
 
   const toggleRightDrawer = () => {
@@ -711,19 +889,15 @@ const DashboardPage = () => {
       console.log("Could not fetch user data, using default:", error);
     }
 
-    // Determine the receiver - use conversation participants if available, otherwise fallback logic
+    // Determine the receiver - always use the selected notification as source of truth
     let receiverId;
-    if (conversationParticipants.otherUser?.id) {
-      receiverId = conversationParticipants.otherUser.id;
+
+    if (String(selectedNotification.sender) === String(currentUserId)) {
+      // If current user (admin) sent the original notification, reply to the receiver
+      receiverId = selectedNotification.receiver;
     } else {
-      // Fallback: determine receiver from the selected notification
-      if (String(selectedNotification.sender) === String(currentUserId)) {
-        // If current user sent the original notification, reply to the receiver
-        receiverId = selectedNotification.receiver;
-      } else {
-        // If someone else sent the notification, reply to the sender
-        receiverId = selectedNotification.sender;
-      }
+      // If someone else sent the notification to admin, reply to the sender
+      receiverId = selectedNotification.sender;
     }
 
     // Validate that we have a valid receiver
@@ -732,9 +906,10 @@ const DashboardPage = () => {
       return;
     }
 
+    // FIXED: Correct sender and receiver assignment
     const messageData = {
-      sender: receiverId,
-      receiver: currentUserId,
+      sender: currentUserId, // Current user (admin) is the sender
+      receiver: receiverId, // Other user is the receiver
       message: replyMessage,
       sender_username: user.username,
     };
@@ -863,8 +1038,13 @@ const DashboardPage = () => {
 
       const newMessage = await response.json();
 
-      // Add the new message to conversation history
-      setConversationHistory((prev) => [...prev, newMessage]);
+      // Add the new message to conversation history with proper sender info
+      const messageWithSenderInfo = {
+        ...newMessage,
+        sender_username: user.username,
+      };
+
+      setConversationHistory((prev) => [...prev, messageWithSenderInfo]);
       setReplyMessage("");
 
       // Mark all messages in this conversation as read (except the new one we just sent)
@@ -898,8 +1078,15 @@ const DashboardPage = () => {
         }
       }, 100);
 
-      // Refresh notifications to get any new messages
+      // Refresh notifications to get any new messages (but don't reset conversation state)
       fetchNotifications(token);
+
+      console.log("Message sent successfully, conversation remains open");
+      console.log(
+        "Current conversation participants:",
+        conversationParticipants
+      );
+      console.log("Selected notification still:", selectedNotification);
     } catch (error) {
       console.error("Error sending message:", error);
 
@@ -940,23 +1127,54 @@ const DashboardPage = () => {
     }
   };
 
-  const handleChartsDialogUsersOpen = () => {
-    setChartsDialogUsers(true);
+  const handleChartsDrawerOpen = () => {
+    setChartsDrawerOpen(true);
+    // Close notifications drawer if open
+    setRightDrawerOpen(false);
   };
 
-  const handleChartsDialogUsersClose = () => {
-    setChartsDialogUsers(false);
+  const handleChartsDrawerClose = () => {
+    setChartsDrawerOpen(false);
   };
 
-  // Get applicants that have notifications or chart data
-  const applicantsWithNotifications = applicants.filter(
-    (applicant) =>
-      notifications.some(
+  // Get ALL applicants with their notification data for charts
+  const applicantsWithNotifications = applicants
+    .map((applicant) => {
+      const applicantNotifications = notifications.filter(
         (note) =>
           note.sender === applicant.user.id ||
           note.receiver === applicant.user.id
-      ) || applicant.status === "pending"
-  );
+      );
+
+      return {
+        ...applicant,
+        notificationCount: applicantNotifications.length,
+        notifications: applicantNotifications,
+        hasNotifications: applicantNotifications.length > 0,
+        // Include recent notification info
+        latestNotification:
+          applicantNotifications.length > 0
+            ? applicantNotifications.sort(
+                (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+              )[0]
+            : null,
+      };
+    })
+    .sort((a, b) => {
+      // Sort by: 1) Has notifications, 2) Notification count, 3) Latest notification time
+      if (a.hasNotifications && !b.hasNotifications) return -1;
+      if (!a.hasNotifications && b.hasNotifications) return 1;
+      if (a.notificationCount !== b.notificationCount) {
+        return b.notificationCount - a.notificationCount;
+      }
+      if (a.latestNotification && b.latestNotification) {
+        return (
+          new Date(b.latestNotification.timestamp) -
+          new Date(a.latestNotification.timestamp)
+        );
+      }
+      return 0;
+    });
 
   const handleSelectApplicant = (applicant) => {
     setSelectedApplicant(applicant);
@@ -1010,7 +1228,7 @@ const DashboardPage = () => {
     }
 
     setReplyDialogOpen(true);
-    handleChartsDialogUsersClose();
+    handleChartsDrawerClose();
   };
 
   const handleDeleteChart = (applicantId) => {
@@ -1066,21 +1284,32 @@ const DashboardPage = () => {
     const token = localStorage.getItem("access");
     if (!token) return;
 
-
     try {
+      console.log(`Deleting notification with ID: ${notificationToDelete.id}`);
+
       const response = await fetch(
         `${API_BASE_URL}/api/notifications/${notificationToDelete.id}/`,
         {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         }
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to delete notification: ${response.status}`);
+        let errorMessage = `Failed to delete notification: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (parseError) {
+          console.error("Error parsing error response:", parseError);
+        }
+        throw new Error(errorMessage);
       }
+
+      console.log("Notification deleted successfully from server");
 
       // Remove the notification from local state
       setNotifications((prevNotifications) =>
@@ -1102,12 +1331,18 @@ const DashboardPage = () => {
         handleReplyDialogClose();
       }
 
+      // Show success message
+      showAlert("Message deleted successfully!", "Success");
+
       // Close confirmation dialog
       setDeleteConfirmOpen(false);
       setNotificationToDelete(null);
     } catch (error) {
       console.error("Error deleting notification:", error);
-      showAlert("Failed to delete message. Please try again.", "Delete Error");
+      showAlert(
+        error.message || "Failed to delete message. Please try again.",
+        "Delete Error"
+      );
       setDeleteConfirmOpen(false);
       setNotificationToDelete(null);
     }
@@ -1302,19 +1537,33 @@ const DashboardPage = () => {
           sx={{
             width: leftDrawerOpen ? drawerWidthLeft : 0,
             bgcolor: "background.paper",
-            p: leftDrawerOpen ? 2 : 0,
+            p: leftDrawerOpen ? (isMobile ? 1 : 2) : 0,
             borderRight: leftDrawerOpen ? "1px solid #333" : "none",
             position: "fixed",
             top: 0,
             height: "100vh",
             overflow: "auto",
-            zIndex: 1200,
+            zIndex: isMobile ? 1300 : 1200, // Higher z-index on mobile to overlay content
             transition: "width 0.3s, padding 0.3s",
             whiteSpace: "nowrap",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
             alignItems: "center",
+            // Add backdrop on mobile when drawer is open
+            ...(isMobile &&
+              leftDrawerOpen && {
+                "&::before": {
+                  content: '""',
+                  position: "fixed",
+                  top: 0,
+                  left: drawerWidthLeft,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: "rgba(0, 0, 0, 0.5)",
+                  zIndex: -1,
+                },
+              }),
           }}
         >
           {leftDrawerOpen && (
@@ -1337,22 +1586,20 @@ const DashboardPage = () => {
                     mb: 2,
                     p: 1,
                     borderRadius: 2,
+                    cursor: "pointer",
                     "&:hover": {
                       bgcolor: "action.hover",
                     },
                   }}
+                  onClick={handleProfileOpen}
                 >
-                  <CardMedia
-                    component="img"
+                  <AccountCircleIcon
                     sx={{
                       width: 50,
                       height: 50,
-                      objectFit: "cover",
-                      borderRadius: "50%",
                       mr: 2,
+                      color: "primary.main",
                     }}
-                    image={user.passportPicture}
-                    alt="Profile"
                   />
                   <Box sx={{ flexGrow: 1 }}>
                     <Typography
@@ -1364,19 +1611,23 @@ const DashboardPage = () => {
                     >
                       {user.username}
                     </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: currentTheme.palette.text.secondary,
+                        fontSize: "0.75rem",
+                      }}
+                    >
+                      Credit Officer
+                    </Typography>
                   </Box>
-                  <IconButton
-                    onClick={handleProfileOpen}
-                    size="small"
+                  <EditIcon
+                    fontSize="small"
                     sx={{
                       color: "text.secondary",
-                      "&:hover": {
-                        color: "primary.main",
-                      },
+                      ml: 1,
                     }}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
+                  />
                 </Box>
                 <Divider sx={{ mb: 2, width: "100%" }} />
                 <Button
@@ -1390,7 +1641,7 @@ const DashboardPage = () => {
                   startIcon={<PieChartIcon />}
                   fullWidth
                   sx={{ justifyContent: "flex-start", color: "text.primary" }}
-                  onClick={handleChartsDialogUsersOpen}
+                  onClick={handleChartsDrawerOpen}
                 >
                   Charts
                 </Button>
@@ -1422,26 +1673,47 @@ const DashboardPage = () => {
           )}
         </Box>
 
+        {/* Mobile backdrop overlay */}
+        {isMobile && leftDrawerOpen && (
+          <Box
+            sx={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              zIndex: 1250,
+            }}
+            onClick={handleBackdropClick}
+          />
+        )}
+
         <Box
           component="main"
           sx={{
             flexGrow: 1,
-            ml: leftDrawerOpen ? `${drawerWidthLeft}px` : "0",
-            mr: rightDrawerOpen ? `${drawerWidthRight}px` : "0",
-            p: 3,
-            mt: 8,
+            ml: leftDrawerOpen && !isMobile ? `${drawerWidthLeft}px` : "0",
+            mr:
+              (rightDrawerOpen || chartsDrawerOpen) && !isMobile
+                ? `${drawerWidthRight}px`
+                : "0",
+            p: isMobile ? 1 : isTablet ? 2 : 3,
+            mt: isMobile ? 7 : 8,
             transition: "margin-left 0.3s, margin-right 0.3s",
             display: "flex",
             justifyContent: "center",
+            minHeight: "calc(100vh - 64px)",
           }}
         >
           <Paper
-            elevation={3}
+            elevation={isMobile ? 1 : 3}
             sx={{
-              padding: 4,
-              borderRadius: 2,
+              padding: isMobile ? 1 : isTablet ? 2 : 4,
+              borderRadius: isMobile ? 1 : 2,
               maxWidth: "lg",
               width: "100%",
+              overflow: "hidden", // Prevent horizontal scroll
             }}
           >
             <Box sx={{ mb: 4 }}>
@@ -1475,10 +1747,10 @@ const DashboardPage = () => {
                       component="div"
                       sx={{ fontWeight: "bold", mb: 0.5 }}
                     >
-                      {totalApplicants}
+                      {statsData.total_applications}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Total Applicants
+                      Total Applications
                     </Typography>
                   </CardContent>
                 </Card>
@@ -1506,7 +1778,7 @@ const DashboardPage = () => {
                       component="div"
                       sx={{ fontWeight: "bold", mb: 0.5 }}
                     >
-                      {pendingApplicants}
+                      {statsData.total_pending}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Pending Applications
@@ -1537,7 +1809,7 @@ const DashboardPage = () => {
                       component="div"
                       sx={{ fontWeight: "bold", mb: 0.5 }}
                     >
-                      {acceptedApplicants}
+                      {statsData.total_accepted}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Accepted Applications
@@ -1565,7 +1837,7 @@ const DashboardPage = () => {
                       component="div"
                       sx={{ fontWeight: "bold", mb: 0.5 }}
                     >
-                      {rejectedApplicants}
+                      {statsData.total_rejected}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                       Rejected Applications
@@ -1583,8 +1855,20 @@ const DashboardPage = () => {
               Loan Applicants
             </Typography>
 
-            <Box sx={{ mb: 3, display: "flex", gap: 1, alignItems: "center" }}>
-              <Typography variant="subtitle1" sx={{ mr: 1 }}>
+            <Box
+              sx={{
+                mb: 3,
+                display: "flex",
+                gap: 1,
+                alignItems: isMobile ? "flex-start" : "center",
+                flexDirection: isMobile ? "column" : "row",
+                flexWrap: "wrap",
+              }}
+            >
+              <Typography
+                variant={isMobile ? "body1" : "subtitle1"}
+                sx={{ mr: isMobile ? 0 : 1, mb: isMobile ? 1 : 0 }}
+              >
                 Filter by Status:
               </Typography>
               <Chip
@@ -1634,10 +1918,23 @@ const DashboardPage = () => {
               </Box>
             ) : (
               <>
-                <TableContainer component={Paper}>
+                <TableContainer
+                  component={Paper}
+                  sx={{
+                    overflowX: "auto",
+                    maxWidth: "100%",
+                    "& .MuiTable-root": {
+                      minWidth: isMobile ? 800 : "100%", // Allow horizontal scroll on mobile
+                    },
+                  }}
+                >
                   <Table
-                    sx={{ minWidth: "100%", tableLayout: "fixed" }}
+                    sx={{
+                      minWidth: isMobile ? 800 : "100%",
+                      tableLayout: isMobile ? "auto" : "fixed",
+                    }}
                     aria-label="loan applicants table"
+                    size={isMobile ? "small" : "medium"}
                   >
                     <TableHead>
                       <TableRow>
@@ -1796,37 +2093,63 @@ const DashboardPage = () => {
                                   gap: 0.5,
                                 }}
                               >
-                                <Tooltip title="Accept">
-                                  <IconButton
-                                    color="success"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleStatusUpdate(
-                                        applicant.id,
-                                        "accepted"
-                                      );
-                                    }}
-                                    disabled={applicant.status === "accepted"}
-                                    size="small"
-                                  >
-                                    <CheckCircleOutlineIcon fontSize="small" />
-                                  </IconButton>
+                                <Tooltip
+                                  title={
+                                    applicant.status !== "pending"
+                                      ? "Status Already Set - Cannot Change"
+                                      : updatingStatus.has(applicant.id)
+                                      ? "Updating..."
+                                      : "Accept"
+                                  }
+                                >
+                                  <span>
+                                    <IconButton
+                                      color="success"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStatusUpdate(
+                                          applicant.id,
+                                          "accepted"
+                                        );
+                                      }}
+                                      disabled={
+                                        applicant.status !== "pending" ||
+                                        updatingStatus.has(applicant.id)
+                                      }
+                                      size="small"
+                                    >
+                                      <CheckCircleOutlineIcon fontSize="small" />
+                                    </IconButton>
+                                  </span>
                                 </Tooltip>
-                                <Tooltip title="Reject">
-                                  <IconButton
-                                    color="error"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleStatusUpdate(
-                                        applicant.id,
-                                        "rejected"
-                                      );
-                                    }}
-                                    disabled={applicant.status === "rejected"}
-                                    size="small"
-                                  >
-                                    <CancelOutlinedIcon fontSize="small" />
-                                  </IconButton>
+                                <Tooltip
+                                  title={
+                                    applicant.status !== "pending"
+                                      ? "Status Already Set - Cannot Change"
+                                      : updatingStatus.has(applicant.id)
+                                      ? "Updating..."
+                                      : "Reject"
+                                  }
+                                >
+                                  <span>
+                                    <IconButton
+                                      color="error"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStatusUpdate(
+                                          applicant.id,
+                                          "rejected"
+                                        );
+                                      }}
+                                      disabled={
+                                        applicant.status !== "pending" ||
+                                        updatingStatus.has(applicant.id)
+                                      }
+                                      size="small"
+                                    >
+                                      <CancelOutlinedIcon fontSize="small" />
+                                    </IconButton>
+                                  </span>
                                 </Tooltip>
                                 <Tooltip title="Delete">
                                   <IconButton
@@ -1894,6 +2217,18 @@ const DashboardPage = () => {
                   >
                     Notifications
                   </Typography>
+                  <Tooltip title="Refresh Notifications">
+                    <IconButton
+                      onClick={() => {
+                        console.log("Manual refresh notifications...");
+                        fetchNotifications();
+                      }}
+                      size="small"
+                      sx={{ color: currentTheme.palette.text.primary }}
+                    >
+                      <RefreshIcon />
+                    </IconButton>
+                  </Tooltip>
                   {notifications.filter(
                     (note) => !readNotifications.has(note.id)
                   ).length > 0 && (
@@ -2055,6 +2390,324 @@ const DashboardPage = () => {
           )}
         </Box>
 
+        {/* Charts Drawer - Similar to Notifications Drawer */}
+        <Box
+          sx={{
+            width: chartsDrawerOpen ? drawerWidthRight : 0,
+            bgcolor: "background.paper",
+            p: chartsDrawerOpen ? 2 : 0,
+            borderLeft: chartsDrawerOpen ? "1px solid #333" : "none",
+            position: "fixed",
+            right: 0,
+            top: 0,
+            height: "100vh",
+            overflow: "auto",
+            zIndex: 1200,
+            transition: "width 0.3s, padding 0.3s",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {chartsDrawerOpen && (
+            <>
+              <Box sx={{ mt: 10 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 1,
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={{ color: currentTheme.palette.text.primary }}
+                  >
+                    Charts & Conversations
+                  </Typography>
+                  <IconButton
+                    onClick={handleChartsDrawerClose}
+                    size="small"
+                    sx={{ color: currentTheme.palette.text.primary }}
+                  >
+                    <CloseIcon />
+                  </IconButton>
+                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: currentTheme.palette.text.secondary,
+                    display: "block",
+                    mb: 1,
+                  }}
+                >
+                  Select an applicant to view their data and start a
+                  conversation
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "primary.main",
+                    display: "block",
+                    mb: 2,
+                    fontWeight: "bold",
+                  }}
+                >
+                  📊 Total: {applicantsWithNotifications.length} applicants | 💬{" "}
+                  {
+                    applicantsWithNotifications.filter(
+                      (app) => app.hasNotifications
+                    ).length
+                  }{" "}
+                  with messages | 📝{" "}
+                  {applicantsWithNotifications.reduce(
+                    (sum, app) => sum + app.notificationCount,
+                    0
+                  )}{" "}
+                  total messages
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                {applicantsWithNotifications.length === 0 ? (
+                  <Box sx={{ p: 3, textAlign: "center" }}>
+                    <PieChartIcon
+                      sx={{ fontSize: 48, color: "text.secondary", mb: 2 }}
+                    />
+                    <Typography
+                      variant="h6"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      No Applicants Available
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      No applicants with notifications or pending applications
+                      found.
+                    </Typography>
+                  </Box>
+                ) : (
+                  applicantsWithNotifications.map((applicant) => {
+                    return (
+                      <Box
+                        key={applicant.id}
+                        sx={{
+                          mb: 1,
+                          p: 1.5,
+                          bgcolor: "action.hover",
+                          borderRadius: 1,
+                          cursor: "pointer",
+                          border: "1px solid",
+                          borderColor: "divider",
+                          position: "relative",
+                          "&:hover": {
+                            bgcolor: "primary.light",
+                            borderColor: "primary.main",
+                          },
+                          "&:hover .delete-button": {
+                            opacity: 1,
+                          },
+                        }}
+                        onClick={() => handleSelectApplicant(applicant)}
+                      >
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            gap: 1,
+                          }}
+                        >
+                          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                mb: 0.5,
+                              }}
+                            >
+                              <Typography
+                                variant="subtitle2"
+                                sx={{
+                                  fontWeight: "bold",
+                                  color: currentTheme.palette.text.primary,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {applicant.user.username}
+                              </Typography>
+                              <Chip
+                                label={applicant.status}
+                                size="small"
+                                color={
+                                  applicant.status === "accepted"
+                                    ? "success"
+                                    : applicant.status === "rejected"
+                                    ? "error"
+                                    : "warning"
+                                }
+                                sx={{ ml: 1, fontSize: "0.7rem" }}
+                              />
+                            </Box>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: currentTheme.palette.text.secondary,
+                                display: "block",
+                                mb: 0.5,
+                              }}
+                            >
+                              📞 {applicant.user.phone} | 💰 Loan: Tsh.{" "}
+                              {applicant.loan_amount}
+                            </Typography>
+
+                            {/* Always show notification status */}
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.5,
+                                mb: 0.5,
+                              }}
+                            >
+                              <ChatIcon
+                                sx={{
+                                  fontSize: "0.8rem",
+                                  color: applicant.hasNotifications
+                                    ? "primary.main"
+                                    : "text.disabled",
+                                }}
+                              />
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: applicant.hasNotifications
+                                    ? "primary.main"
+                                    : "text.disabled",
+                                  fontSize: "0.7rem",
+                                  fontWeight: applicant.hasNotifications
+                                    ? "medium"
+                                    : "normal",
+                                }}
+                              >
+                                {applicant.hasNotifications
+                                  ? `${applicant.notificationCount} message${
+                                      applicant.notificationCount !== 1
+                                        ? "s"
+                                        : ""
+                                    }`
+                                  : "No messages"}
+                              </Typography>
+                            </Box>
+
+                            {/* Show latest notification preview if available */}
+                            {applicant.latestNotification && (
+                              <Box
+                                sx={{
+                                  bgcolor: "primary.light",
+                                  p: 0.5,
+                                  borderRadius: 0.5,
+                                  mb: 0.5,
+                                }}
+                              >
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: "primary.dark",
+                                    fontSize: "0.65rem",
+                                    fontStyle: "italic",
+                                    display: "block",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  💬 Latest: "
+                                  {applicant.latestNotification.message.substring(
+                                    0,
+                                    40
+                                  )}
+                                  ..."
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: "text.secondary",
+                                    fontSize: "0.6rem",
+                                  }}
+                                >
+                                  {new Date(
+                                    applicant.latestNotification.timestamp
+                                  ).toLocaleString()}
+                                </Typography>
+                              </Box>
+                            )}
+
+                            {/* Show notification summary */}
+                            {applicant.hasNotifications && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: "success.main",
+                                  fontSize: "0.65rem",
+                                  fontWeight: "bold",
+                                  display: "block",
+                                }}
+                              >
+                                ✅ Click to view all{" "}
+                                {applicant.notificationCount} message
+                                {applicant.notificationCount !== 1 ? "s" : ""}
+                              </Typography>
+                            )}
+                          </Box>
+                          <IconButton
+                            className="delete-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteChart(applicant.id);
+                            }}
+                            size="small"
+                            sx={{
+                              opacity: 0,
+                              transition: "opacity 0.2s",
+                              color: "error.main",
+                              "&:hover": {
+                                bgcolor: "error.light",
+                              },
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    );
+                  })
+                )}
+
+                <Box
+                  sx={{
+                    mt: 2,
+                    pt: 2,
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", textAlign: "center" }}
+                  >
+                    {applicantsWithNotifications.length} applicant
+                    {applicantsWithNotifications.length !== 1 ? "s" : ""}{" "}
+                    available
+                  </Typography>
+                </Box>
+              </Box>
+            </>
+          )}
+        </Box>
+
         <Dialog open={aboutDialogOpen} onClose={handleAboutClose}>
           <DialogTitle>About This Dashboard</DialogTitle>
           <DialogContent>
@@ -2101,23 +2754,40 @@ const DashboardPage = () => {
                 py: 2,
               }}
             >
-              <CardMedia
-                component="img"
+              <Box
                 sx={{
-                  width: 100,
-                  height: 100,
-                  objectFit: "cover",
-                  borderRadius: "50%",
-                  border: "3px solid",
-                  borderColor: "primary.main",
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
-                image={user.passportPicture}
-                alt={`${user.username}'s Profile Picture`}
-              />
+              >
+                <AccountCircleIcon
+                  sx={{
+                    width: 100,
+                    height: 100,
+                    color: "primary.main",
+                    border: "3px solid",
+                    borderColor: "primary.main",
+                    borderRadius: "50%",
+                    backgroundColor: "background.paper",
+                  }}
+                />
+              </Box>
 
               <Box sx={{ width: "100%", textAlign: "center" }}>
-                <Typography variant="h6" sx={{ fontWeight: "bold", mb: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: "bold", mb: 1 }}>
                   {user.username}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "primary.main",
+                    fontWeight: "medium",
+                    mb: 3,
+                  }}
+                >
+                  Credit Officer
                 </Typography>
 
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -2267,27 +2937,49 @@ const DashboardPage = () => {
             )}
           </DialogContent>
           <DialogActions>
-            <Tooltip title="Accept Application">
+            <Tooltip
+              title={
+                selectedApplicantDetails?.status !== "pending"
+                  ? "Status Already Set - Cannot Change"
+                  : updatingStatus.has(selectedApplicantDetails?.id)
+                  ? "Updating..."
+                  : "Accept Application"
+              }
+            >
               <span>
                 <IconButton
                   onClick={() =>
                     handleStatusUpdate(selectedApplicantDetails.id, "accepted")
                   }
                   color="success"
-                  disabled={selectedApplicantDetails?.status === "accepted"}
+                  disabled={
+                    selectedApplicantDetails?.status !== "pending" ||
+                    updatingStatus.has(selectedApplicantDetails?.id)
+                  }
                 >
                   <CheckCircleOutlineIcon />
                 </IconButton>
               </span>
             </Tooltip>
-            <Tooltip title="Reject Application">
+            <Tooltip
+              title={
+                selectedApplicantDetails?.status !== "pending"
+                  ? "Status Already Set - Cannot Change"
+                  : updatingStatus.has(selectedApplicantDetails?.id)
+                  ? "Updating..."
+                  : "Reject Application"
+              }
+            >
               <span>
                 <IconButton
                   onClick={() =>
                     handleStatusUpdate(selectedApplicantDetails.id, "rejected")
                   }
                   color="error"
-                  disabled={selectedApplicantDetails?.status === "rejected"}
+                  disabled={
+                    selectedApplicantDetails?.status !== "pending" ||
+                    updatingStatus.has(selectedApplicantDetails?.id)
+                  }
                 >
                   <CancelOutlinedIcon />
                 </IconButton>
@@ -2623,167 +3315,169 @@ const DashboardPage = () => {
           </DialogContent>
         </Dialog>
 
-        <Dialog
-          open={chartsDialogUsers}
-          onClose={handleChartsDialogUsersClose}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              bgcolor: "primary.main",
-              color: "white",
-            }}
-          >
-            <IconButton
-              onClick={handleChartsDialogUsersClose}
-              sx={{ mr: 1, color: "white" }}
+        {/* Old Charts Dialog - Replaced with Drawer */}
+        {false && (
+          <Dialog open={false} onClose={() => {}} maxWidth="md" fullWidth>
+            <DialogTitle
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                bgcolor: "primary.main",
+                color: "white",
+              }}
             >
-              <ArrowBackIcon />
-            </IconButton>
-            <Box>
-              <Typography variant="h6">
-                Applicant Charts & Conversations
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                Select an applicant to view their data and start a conversation
-              </Typography>
-            </Box>
-          </DialogTitle>
-          <DialogContent dividers sx={{ p: 0 }}>
-            {applicantsWithNotifications.length === 0 ? (
-              <Box sx={{ p: 3, textAlign: "center" }}>
-                <PieChartIcon
-                  sx={{ fontSize: 48, color: "text.secondary", mb: 2 }}
-                />
-                <Typography variant="h6" color="text.secondary" gutterBottom>
-                  No Applicants Available
+              <IconButton
+                onClick={handleChartsDialogUsersClose}
+                sx={{ mr: 1, color: "white" }}
+              >
+                <ArrowBackIcon />
+              </IconButton>
+              <Box>
+                <Typography variant="h6">
+                  Applicant Charts & Conversations
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  No applicants with notifications or pending applications
-                  found.
+                <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                  Select an applicant to view their data and start a
+                  conversation
                 </Typography>
               </Box>
-            ) : (
-              <List sx={{ p: 0 }}>
-                {applicantsWithNotifications.map((applicant) => {
-                  const hasNotifications = notifications.some(
-                    (note) =>
-                      note.sender === applicant.user.id ||
-                      note.receiver === applicant.user.id
-                  );
-                  const notificationCount = notifications.filter(
-                    (note) =>
-                      note.sender === applicant.user.id ||
-                      note.receiver === applicant.user.id
-                  ).length;
+            </DialogTitle>
+            <DialogContent dividers sx={{ p: 0 }}>
+              {applicantsWithNotifications.length === 0 ? (
+                <Box sx={{ p: 3, textAlign: "center" }}>
+                  <PieChartIcon
+                    sx={{ fontSize: 48, color: "text.secondary", mb: 2 }}
+                  />
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    No Applicants Available
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    No applicants with notifications or pending applications
+                    found.
+                  </Typography>
+                </Box>
+              ) : (
+                <List sx={{ p: 0 }}>
+                  {applicantsWithNotifications.map((applicant) => {
+                    const hasNotifications = notifications.some(
+                      (note) =>
+                        note.sender === applicant.user.id ||
+                        note.receiver === applicant.user.id
+                    );
+                    const notificationCount = notifications.filter(
+                      (note) =>
+                        note.sender === applicant.user.id ||
+                        note.receiver === applicant.user.id
+                    ).length;
 
-                  return (
-                    <ListItem
-                      key={applicant.id}
-                      button
-                      onClick={() => handleSelectApplicant(applicant)}
-                      sx={{
-                        borderBottom: "1px solid",
-                        borderColor: "divider",
-                        "&:hover": {
-                          bgcolor: "action.hover",
-                        },
-                      }}
-                    >
-                      <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: "primary.main" }}>
-                          {applicant.user.username.charAt(0).toUpperCase()}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 1,
-                            }}
-                          >
-                            <Typography variant="subtitle1" fontWeight="bold">
-                              {applicant.user.username}
-                            </Typography>
-                            <Chip
-                              label={applicant.status}
-                              size="small"
-                              color={
-                                applicant.status === "accepted"
-                                  ? "success"
-                                  : applicant.status === "rejected"
-                                  ? "error"
-                                  : "warning"
-                              }
-                            />
-                          </Box>
-                        }
-                        secondary={
-                          <Box>
-                            <Typography variant="body2" color="text.secondary">
-                              Loan Amount: Tsh. {applicant.loan_amount}
-                            </Typography>
-                            {hasNotifications && (
-                              <Typography
-                                variant="caption"
-                                color="primary.main"
-                              >
-                                {notificationCount} message
-                                {notificationCount !== 1 ? "s" : ""} available
-                              </Typography>
-                            )}
-                          </Box>
-                        }
-                      />
-                      <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                    return (
+                      <ListItem
+                        key={applicant.id}
+                        button
+                        onClick={() => handleSelectApplicant(applicant)}
+                        sx={{
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                          "&:hover": {
+                            bgcolor: "action.hover",
+                          },
+                        }}
                       >
-                        {hasNotifications && (
-                          <Badge
-                            badgeContent={notificationCount}
-                            color="primary"
-                          >
-                            <ChatIcon color="action" />
-                          </Badge>
-                        )}
-                        <IconButton
-                          edge="end"
-                          aria-label="delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteChart(applicant.id);
-                          }}
-                          size="small"
-                          sx={{ color: "error.main" }}
+                        <ListItemAvatar>
+                          <Avatar sx={{ bgcolor: "primary.main" }}>
+                            {applicant.user.username.charAt(0).toUpperCase()}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                              }}
+                            >
+                              <Typography variant="subtitle1" fontWeight="bold">
+                                {applicant.user.username}
+                              </Typography>
+                              <Chip
+                                label={applicant.status}
+                                size="small"
+                                color={
+                                  applicant.status === "accepted"
+                                    ? "success"
+                                    : applicant.status === "rejected"
+                                    ? "error"
+                                    : "warning"
+                                }
+                              />
+                            </Box>
+                          }
+                          secondary={
+                            <Box>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Loan Amount: Tsh. {applicant.loan_amount}
+                              </Typography>
+                              {hasNotifications && (
+                                <Typography
+                                  variant="caption"
+                                  color="primary.main"
+                                >
+                                  {notificationCount} message
+                                  {notificationCount !== 1 ? "s" : ""} available
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                        <Box
+                          sx={{ display: "flex", alignItems: "center", gap: 1 }}
                         >
-                          <DeleteIcon />
-                        </IconButton>
-                      </Box>
-                    </ListItem>
-                  );
-                })}
-              </List>
-            )}
-          </DialogContent>
-          <DialogActions sx={{ p: 2 }}>
-            <Button onClick={handleChartsDialogUsersClose} variant="outlined">
-              Close
-            </Button>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ flexGrow: 1 }}
-            >
-              {applicantsWithNotifications.length} applicant
-              {applicantsWithNotifications.length !== 1 ? "s" : ""} available
-            </Typography>
-          </DialogActions>
-        </Dialog>
+                          {hasNotifications && (
+                            <Badge
+                              badgeContent={notificationCount}
+                              color="primary"
+                            >
+                              <ChatIcon color="action" />
+                            </Badge>
+                          )}
+                          <IconButton
+                            edge="end"
+                            aria-label="delete"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteChart(applicant.id);
+                            }}
+                            size="small"
+                            sx={{ color: "error.main" }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Box>
+                      </ListItem>
+                    );
+                  })}
+                </List>
+              )}
+            </DialogContent>
+            <DialogActions sx={{ p: 2 }}>
+              <Button onClick={handleChartsDialogUsersClose} variant="outlined">
+                Close
+              </Button>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ flexGrow: 1 }}
+              >
+                {applicantsWithNotifications.length} applicant
+                {applicantsWithNotifications.length !== 1 ? "s" : ""} available
+              </Typography>
+            </DialogActions>
+          </Dialog>
+        )}
 
         <Dialog
           open={!!selectedImage}
