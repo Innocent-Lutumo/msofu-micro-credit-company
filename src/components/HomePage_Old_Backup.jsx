@@ -1212,6 +1212,10 @@ const DashboardPage = () => {
       return a.id - b.id;
     });
 
+    console.log(
+      `Found ${sortedConversation.length} messages in conversation with ${applicant.user.username}`
+    );
+
     // If no existing conversation, create a welcome message
     if (sortedConversation.length === 0) {
       setConversationHistory([
@@ -1219,16 +1223,39 @@ const DashboardPage = () => {
           id: "welcome-" + Date.now(),
           sender: applicant.user.id,
           sender_username: applicant.user.username,
-          message: `Hello! I'm ${applicant.user.username}. You can view my loan application charts and details here.`,
+          message: `Hello! I'm ${applicant.user.username}. You can view my loan application charts and details here. Feel free to ask any questions about my application.`,
           timestamp: new Date().toISOString(),
         },
       ]);
+      // Set up a placeholder notification for new conversation
+      setSelectedNotification({
+        id: null,
+        sender: user.id,
+        receiver: applicant.user.id,
+        message: "",
+        timestamp: new Date().toISOString(),
+      });
     } else {
       setConversationHistory(sortedConversation);
+      // Set the latest notification as selected for context
+      setSelectedNotification(
+        sortedConversation[sortedConversation.length - 1]
+      );
     }
 
+    // Mark conversation messages as read
+    const conversationMessageIds = sortedConversation.map((note) => note.id);
+    setReadNotifications((prev) => {
+      const newSet = new Set(prev);
+      conversationMessageIds.forEach((id) => newSet.add(id));
+      return newSet;
+    });
+
+    console.log("Opening messaging dialog for:", applicant.user.username);
     setReplyDialogOpen(true);
-    handleChartsDrawerClose();
+
+    // Keep charts drawer open for easy conversation switching
+    // handleChartsDrawerClose(); // Commented out to allow multiple conversations
   };
 
   const handleDeleteChart = (applicantId) => {
@@ -2644,22 +2671,66 @@ const DashboardPage = () => {
                               </Box>
                             )}
 
-                            {/* Show notification summary */}
-                            {applicant.hasNotifications && (
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: "success.main",
-                                  fontSize: "0.65rem",
-                                  fontWeight: "bold",
-                                  display: "block",
-                                }}
-                              >
-                                ✅ Click to view all{" "}
-                                {applicant.notificationCount} message
-                                {applicant.notificationCount !== 1 ? "s" : ""}
-                              </Typography>
-                            )}
+                            {/* Show notification summary and quick actions */}
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                mt: 0.5,
+                              }}
+                            >
+                              {applicant.hasNotifications ? (
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: "success.main",
+                                    fontSize: "0.65rem",
+                                    fontWeight: "bold",
+                                    display: "block",
+                                  }}
+                                >
+                                  ✅ Click to view all{" "}
+                                  {applicant.notificationCount} message
+                                  {applicant.notificationCount !== 1 ? "s" : ""}
+                                </Typography>
+                              ) : (
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: "info.main",
+                                    fontSize: "0.65rem",
+                                    fontWeight: "bold",
+                                    display: "block",
+                                  }}
+                                >
+                                  💬 Click to start conversation
+                                </Typography>
+                              )}
+
+                              {/* Quick message button */}
+                              <Tooltip title="Send Message">
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectApplicant(applicant);
+                                  }}
+                                  sx={{
+                                    color: "primary.main",
+                                    bgcolor: "primary.light",
+                                    "&:hover": {
+                                      bgcolor: "primary.main",
+                                      color: "white",
+                                    },
+                                    width: 24,
+                                    height: 24,
+                                  }}
+                                >
+                                  <SendIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
                           </Box>
                           <IconButton
                             className="delete-button"
@@ -3021,14 +3092,18 @@ const DashboardPage = () => {
             </IconButton>
             <Box sx={{ display: "flex", flexDirection: "column" }}>
               <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                💬{" "}
                 {conversationParticipants.otherUser?.username ||
                   currentReplyUser ||
                   "Applicant"}
               </Typography>
               <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                Conversation between you and{" "}
-                {conversationParticipants.otherUser?.username ||
-                  currentReplyUser}
+                {selectedApplicant
+                  ? `📊 Charts Conversation | 💰 Loan: Tsh. ${selectedApplicant.loan_amount} | Status: ${selectedApplicant.status}`
+                  : `Conversation between you and ${
+                      conversationParticipants.otherUser?.username ||
+                      currentReplyUser
+                    }`}
               </Typography>
             </Box>
           </DialogTitle>
