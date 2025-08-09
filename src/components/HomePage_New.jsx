@@ -101,7 +101,7 @@ const HomePage = () => {
   const handleLogout = () => {
     localStorage.removeItem("access");
     localStorage.removeItem("refresh");
-    navigate("/login");
+    navigate("/");
   };
 
   // Alert dialog helpers

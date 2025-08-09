@@ -25,7 +25,85 @@ import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { keyframes } from "@emotion/react";
 
-const defaultTheme = createTheme();
+const greenTheme = createTheme({
+  palette: {
+    primary: {
+      main: "#4caf50", // Green primary color
+      light: "#81c784",
+      dark: "#388e3c",
+      contrastText: "#ffffff",
+    },
+    secondary: {
+      main: "#81c784", // Light green secondary
+      light: "#a5d6a7",
+      dark: "#66bb6a",
+      contrastText: "#ffffff",
+    },
+    success: {
+      main: "#4caf50",
+      light: "#81c784",
+      dark: "#388e3c",
+    },
+    background: {
+      default: "#f1f8e9", // Very light green background
+      paper: "#ffffff",
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        contained: {
+          backgroundColor: "#4caf50",
+          color: "#ffffff",
+          "&:hover": {
+            backgroundColor: "#388e3c",
+          },
+          "&:disabled": {
+            backgroundColor: "#a5d6a7",
+            color: "#ffffff",
+          },
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": {
+            "&:hover fieldset": {
+              borderColor: "#4caf50",
+            },
+            "&.Mui-focused fieldset": {
+              borderColor: "#4caf50",
+            },
+          },
+          "& .MuiInputLabel-root.Mui-focused": {
+            color: "#4caf50",
+          },
+        },
+      },
+    },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: {
+          color: "#4caf50",
+          "&.Mui-checked": {
+            color: "#4caf50",
+          },
+        },
+      },
+    },
+    MuiLink: {
+      styleOverrides: {
+        root: {
+          color: "#388e3c",
+          "&:hover": {
+            color: "#2e7d32",
+          },
+        },
+      },
+    },
+  },
+});
 
 // Define the animation keyframes
 const checkmarkAnimation = keyframes`
@@ -39,6 +117,68 @@ const checkmarkAnimation = keyframes`
   }
   100% {
     transform: scale(1);
+  }
+`;
+
+const flipInAnimation = keyframes`
+  0% {
+    transform: perspective(400px) rotateY(-90deg);
+    opacity: 0;
+  }
+  40% {
+    transform: perspective(400px) rotateY(-10deg);
+  }
+  70% {
+    transform: perspective(400px) rotateY(10deg);
+  }
+  100% {
+    transform: perspective(400px) rotateY(0deg);
+    opacity: 1;
+  }
+`;
+
+const slideInFromLeft = keyframes`
+  0% {
+    transform: translateX(-100px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+`;
+
+const slideInFromRight = keyframes`
+  0% {
+    transform: translateX(100px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+`;
+
+const fadeInUp = keyframes`
+  0% {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+`;
+
+const pulseGlow = keyframes`
+  0% {
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(76, 175, 80, 0.6), 0 0 30px rgba(76, 175, 80, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
   }
 `;
 
@@ -151,115 +291,185 @@ const LoginForm = () => {
   };
 
   return (
-    <ThemeProvider theme={defaultTheme}>
-      <Container component="main" maxWidth="xs">
-        <CssBaseline />
-        <Paper
-          elevation={12}
-          sx={{
-            marginTop: 8,
-            padding: 4,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            borderRadius: 2,
-            boxShadow: "0 8px 16px rgba(0,0,0,0.2)",
-          }}
-        >
-          <Typography component="h1" variant="h5">
-            Sign In
-          </Typography>
-          <Box
-            component="form"
-            onSubmit={handleLogin}
-            noValidate
-            sx={{ mt: 1, width: "100%", position: "relative" }}
+    <ThemeProvider theme={greenTheme}>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          background:
+            "linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 50%, #ffffff 100%)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Container component="main" maxWidth="xs">
+          <CssBaseline />
+          <Paper
+            elevation={12}
+            sx={{
+              marginTop: 8,
+              padding: 4,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              borderRadius: 2,
+              boxShadow: "0 8px 16px rgba(76, 175, 80, 0.3)",
+              border: "1px solid rgba(76, 175, 80, 0.1)",
+              background: "linear-gradient(145deg, #ffffff 0%, #f9fffe 100%)",
+              animation: `${flipInAnimation} 1s ease-out`,
+              "&:hover": {
+                animation: `${pulseGlow} 2s infinite`,
+              },
+            }}
           >
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              placeholder="+255..."
-              id="phone-number"
-              label="Phone Number"
-              name="phone"
-              autoComplete="tel"
-              autoFocus
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              error={!!phoneError}
-              helperText={phoneError}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="password"
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              id="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              error={!!passwordError}
-              helperText={passwordError}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      aria-label="toggle password visibility"
-                      onClick={handleClickShowPassword}
-                      onMouseDown={handleMouseDownPassword}
-                      edge="end"
-                    >
-                      {showPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  value="remember"
-                  color="primary"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                />
-              }
-              label="Remember me"
-            />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-              disabled={loading}
-            >
-              {loading ? "Signing In..." : "Sign In"}
-            </Button>
-            <Box
+            <Typography
+              component="h1"
+              variant="h5"
               sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                width: "100%",
+                color: "#2e7d32",
+                fontWeight: "bold",
+                marginBottom: 2,
+                textAlign: "center",
+                animation: `${slideInFromLeft} 0.8s ease-out 0.3s both`,
               }}
             >
-              <Link href="#" variant="body2">
-                Forgot password?
-              </Link>
-              <Link href="#" variant="body2">
-                {"Don't have an account? Sign Up"}
-              </Link>
+              Sign In
+            </Typography>
+            <Box
+              component="form"
+              onSubmit={handleLogin}
+              noValidate
+              sx={{
+                mt: 1,
+                width: "100%",
+                position: "relative",
+                animation: `${fadeInUp} 0.8s ease-out 0.5s both`,
+              }}
+            >
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                placeholder="+255..."
+                id="phone-number"
+                label="Phone Number"
+                name="phone"
+                autoComplete="tel"
+                autoFocus
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                error={!!phoneError}
+                helperText={phoneError}
+                sx={{
+                  animation: `${slideInFromLeft} 0.6s ease-out 0.7s both`,
+                }}
+              />
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                name="password"
+                label="Password"
+                type={showPassword ? "text" : "password"}
+                id="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                error={!!passwordError}
+                helperText={passwordError}
+                sx={{
+                  animation: `${slideInFromRight} 0.6s ease-out 0.9s both`,
+                }}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="toggle password visibility"
+                          onClick={handleClickShowPassword}
+                          onMouseDown={handleMouseDownPassword}
+                          edge="end"
+                          sx={{ color: "#4caf50" }}
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    value="remember"
+                    color="primary"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                  />
+                }
+                label="Remember me"
+                sx={{
+                  animation: `${fadeInUp} 0.6s ease-out 1.1s both`,
+                }}
+              />
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                sx={{
+                  mt: 3,
+                  mb: 2,
+                  animation: `${fadeInUp} 0.6s ease-out 1.3s both`,
+                  "&:hover": {
+                    transform: "scale(1.02)",
+                    transition: "transform 0.2s ease-in-out",
+                  },
+                }}
+                disabled={loading}
+              >
+                {loading ? "Signing In..." : "Sign In"}
+              </Button>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  width: "100%",
+                  animation: `${fadeInUp} 0.6s ease-out 1.5s both`,
+                }}
+              >
+                <Link
+                  href="#"
+                  variant="body2"
+                  sx={{
+                    "&:hover": {
+                      transform: "scale(1.05)",
+                      transition: "transform 0.2s ease-in-out",
+                    },
+                  }}
+                >
+                  Forgot password?
+                </Link>
+              </Box>
             </Box>
-          </Box>
-        </Paper>
-      </Container>
+          </Paper>
+        </Container>
+      </Box>
       <Dialog
         open={dialogOpen}
         onClose={handleCloseDialog}
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-description"
+        slotProps={{
+          paper: {
+            sx: {
+              animation: dialogOpen
+                ? `${flipInAnimation} 0.6s ease-out`
+                : "none",
+              borderRadius: 3,
+              border: "2px solid rgba(76, 175, 80, 0.2)",
+            },
+          },
+        }}
       >
         <DialogTitle
           id="alert-dialog-title"
@@ -282,7 +492,17 @@ const LoginForm = () => {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseDialog} autoFocus>
+          <Button
+            onClick={handleCloseDialog}
+            autoFocus
+            variant="contained"
+            sx={{
+              backgroundColor: "#4caf50",
+              "&:hover": {
+                backgroundColor: "#388e3c",
+              },
+            }}
+          >
             OK
           </Button>
         </DialogActions>
